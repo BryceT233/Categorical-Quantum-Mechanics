@@ -40,6 +40,8 @@ universe u
 open CategoryTheory
 open scoped MonoidalCategory
 
+variable {X Y Z : RelCat.{u}}
+
 namespace CategoryTheory.RelCat
 
 /-- The monoidal category structure on `RelCat`: the tensor product is the cartesian
@@ -53,36 +55,35 @@ instance : MonoidalCategoryStruct RelCat.{u} where
   leftUnitor X := graphFunctor.mapIso (Equiv.punitProd X).toIso
   rightUnitor X := graphFunctor.mapIso (Equiv.prodPUnit X).toIso
 
-lemma tensorObj_ext_iff {X Y : RelCat.{u}} (u v : X ⊗ Y) : u = v ↔ u.1 = v.1 ∧ u.2 = v.2 :=
+lemma tensorObj_ext_iff (u v : X ⊗ Y) : u = v ↔ u.1 = v.1 ∧ u.2 = v.2 :=
   Prod.ext_iff
 
-lemma mem_id {X : RelCat.{u}} (u : X ⊗ X) : u ∈ SetRel.id ↔ u.1 = u.2 := Iff.rfl
+lemma mem_id (u : X ⊗ X) : u ∈ SetRel.id ↔ u.1 = u.2 := Iff.rfl
 
-lemma mem_comp {X Y Z : RelCat.{u}} (f : X ⟶ Y) (g : Y ⟶ Z) (x : X) (z : Z) :
-    (x, z) ∈ f.rel.comp g.rel ↔ ∃ y : Y, (x, y) ∈ f.rel ∧ (y, z) ∈ g.rel := SetRel.mem_comp
+lemma mem_comp (f : X ⟶ Y) (g : Y ⟶ Z) (u : X ⊗ Z) :
+    u ∈ f.rel.comp g.rel ↔ ∃ y : Y, (u.1, y) ∈ f.rel ∧ (y, u.2) ∈ g.rel := SetRel.mem_comp
 
-lemma mem_whiskerLeft {X Y Z : RelCat.{u}} (f : Y ⟶ Z) (x x' : X) (y : Y) (z : Z) :
-    ((x, y), (x', z)) ∈ (X ◁ f).rel ↔ x = x' ∧ (y, z) ∈ f.rel := Iff.rfl
+lemma mem_whiskerLeft (f : Y ⟶ Z) (u : X ⊗ Y) (v : X ⊗ Z) :
+    (u, v) ∈ (X ◁ f).rel ↔ u.1 = v.1 ∧ (u.2, v.2) ∈ f.rel := Iff.rfl
 
-lemma mem_whiskerRight {X Y Z : RelCat.{u}} (f : X ⟶ Y) (x : X) (y : Y) (z z' : Z) :
-    ((x, z), y, z') ∈ (f ▷ Z).rel ↔ (x, y) ∈ f.rel ∧ z = z' := Iff.rfl
+lemma mem_whiskerRight (f : X ⟶ Y) (u : X ⊗ Z) (v : Y ⊗ Z) :
+    (u, v) ∈ (f ▷ Z).rel ↔ (u.1, v.1) ∈ f.rel ∧ u.2 = v.2 := Iff.rfl
 
 lemma mem_tensorHom {X₁ Y₁ X₂ Y₂ : RelCat.{u}} (f : X₁ ⟶ Y₁) (g : X₂ ⟶ Y₂)
-    (x₁ : X₁) (x₂ : X₂) (y₁ : Y₁) (y₂ : Y₂) :
-    ((x₁, x₂), y₁, y₂) ∈ (f ⊗ₘ g).rel ↔ (x₁, y₁) ∈ f.rel ∧ (x₂, y₂) ∈ g.rel := by
+    (u : X₁ ⊗ X₂) (v : Y₁ ⊗ Y₂) :
+    (u, v) ∈ (f ⊗ₘ g).rel ↔ (u.1, v.1) ∈ f.rel ∧ (u.2, v.2) ∈ g.rel := by
   constructor
   · rintro ⟨⟨z₁, z₂⟩, hf, hg⟩; grind only [usr Set.mem_ofPred_eq]
   · rintro ⟨h₁, h₂⟩
-    exact ⟨(y₁, x₂), (mem_whiskerRight f x₁ y₁ x₂ x₂).2 ⟨h₁, rfl⟩,
-      (mem_whiskerLeft g y₁ y₁ x₂ y₂).2 ⟨rfl, h₂⟩⟩
+    exact ⟨(v.1, u.2), (mem_whiskerRight ..).2 ⟨h₁, rfl⟩, (mem_whiskerLeft ..).2 ⟨rfl, h₂⟩⟩
 
-lemma mem_associator_hom {X Y Z : RelCat.{u}} (x : X) (y : Y) (z : Z) (p : X × (Y × Z)) :
+lemma mem_associator_hom (x : X) (y : Y) (z : Z) (p : X ⊗ (Y ⊗ Z)) :
     (((x, y), z), p) ∈ (α_ X Y Z).hom.rel ↔ (x, y, z) = p := Iff.rfl
 
-lemma mem_leftUnitor_hom {X : RelCat.{u}} (u : PUnit) (x : X) (y : X) :
+lemma mem_leftUnitor_hom (u : PUnit) (x : X) (y : X) :
     ((u, x), y) ∈ (λ_ X).hom.rel ↔ x = y := Iff.rfl
 
-lemma mem_rightUnitor_hom {X : RelCat.{u}} (x : X) (u : PUnit) (y : X) :
+lemma mem_rightUnitor_hom (x : X) (u : PUnit) (y : X) :
     ((x, u), y) ∈ (ρ_ X).hom.rel ↔ x = y := Iff.rfl
 
 /-- `RelCat` is a monoidal category. -/
@@ -209,6 +210,95 @@ instance monoidalDaggerCategory : MonoidalDaggerCategory RelCat.{u} where
     Hom.ext _ _ (Equiv.graph_inv (Equiv.punitProd ..)).symm
   isUnitary_rightUnitor _ := DaggerCategory.isUnitary_of_dagger_eq_inv _ <|
     Hom.ext _ _ (Equiv.graph_inv (Equiv.prodPUnit ..)).symm
+
+instance : BraidedCategory RelCat.{u} where
+  braiding X Y := graphFunctor.mapIso (Equiv.prodComm X Y).toIso
+  braiding_naturality_left f Z := by
+    apply Hom.ext; ext ⟨⟨x, z⟩, ⟨z'', y'⟩⟩
+    rw [Hom.rel_comp, mem_comp, Hom.rel_comp, mem_comp]
+    constructor
+    · rintro ⟨⟨y, z'⟩, hfz, hβ⟩
+      rw [mem_whiskerRight] at hfz
+      refine ⟨(z, x), by tauto, ?_⟩
+      · change (z', y) = (z'', y') at hβ
+        rw [mem_whiskerLeft]; grind only
+    · rintro ⟨⟨z', x'⟩, hβ, hzf⟩
+      change (z, x) = (z', x') at hβ
+      rw [mem_whiskerLeft] at hzf
+      refine ⟨(y', z), ?_, ?_⟩
+      · rw [mem_whiskerRight]; grind only
+      · change (z, y') = (z'', y'); grind only
+  braiding_naturality_right X f Z g := by
+    apply Hom.ext; ext ⟨⟨x, y⟩, ⟨z'', x'⟩⟩
+    rw [Hom.rel_comp, mem_comp, Hom.rel_comp, mem_comp]
+    constructor
+    · rintro ⟨⟨x'', z'⟩, hxf, hβ⟩
+      rw [mem_whiskerLeft] at hxf
+      change (z', x'') = (z'', x') at hβ
+      refine ⟨(y, x), by tauto, ?_⟩
+      rw [mem_whiskerRight]; grind only
+    · rintro ⟨⟨y', x''⟩, hβ, hfx⟩
+      change (y, x) = (y', x'') at hβ
+      rw [mem_whiskerRight] at hfx
+      refine ⟨(x, z''), ?_, ?_⟩
+      · rw [mem_whiskerLeft]; grind only
+      · change (z'', x) = (z'', x'); grind only
+  hexagon_forward X Y Z := by
+    apply Hom.ext; ext ⟨⟨⟨x, y⟩, z⟩, ⟨y', ⟨z', x'⟩⟩⟩; constructor
+    · rintro ⟨p, hα₁, ⟨⟨⟨m₁, m₂⟩, m₃⟩, hβ, hα₂⟩⟩
+      rw [mem_associator_hom] at hα₁; subst p
+      change ((y, z), x) = ((m₁, m₂), m₃) at hβ
+      rw [mem_associator_hom] at hα₂
+      refine ⟨((y, x), z), ?_, ?_⟩
+      · rw [mem_whiskerRight]; tauto
+      · refine ⟨(y, (x, z)), ?_, ?_⟩
+        · rw [mem_associator_hom]
+        · rw [mem_whiskerLeft]
+          change y = y' ∧ (z, x) = (z', x')
+          grind only
+    · rintro ⟨⟨⟨y'', x''⟩, z''⟩, hβ₁, ⟨q, hα₁, hrest⟩⟩
+      rw [mem_whiskerRight] at hβ₁
+      change (y, x) = (y'', x'') ∧ z = z'' at hβ₁
+      rw [mem_associator_hom] at hα₁
+      subst q; rw [mem_whiskerLeft] at hrest
+      change y'' = y' ∧ (z'', x'') = (z', x') at hrest
+      refine ⟨(x, (y, z)), ?_, ?_⟩
+      · rw [mem_associator_hom]
+      · refine ⟨((y, z), x), rfl, ?_⟩
+        rw [mem_associator_hom]
+        ext <;> grind only
+  hexagon_reverse X Y Z := by
+    apply Hom.ext; ext ⟨⟨x, ⟨y, z⟩⟩, ⟨⟨z', x'⟩, y'⟩⟩; constructor
+    · rintro ⟨p, hα₁, ⟨q, hβ, hα₂⟩⟩
+      change ((x, y), z) = p at hα₁; subst p
+      change (z, (x, y)) = q at hβ; subst q
+      change ((z, x), y) = ((z', x'), y') at hα₂
+      refine ⟨(x, (z, y)), ?_, ?_⟩
+      · rw [mem_whiskerLeft]; tauto
+      · refine ⟨((x, z), y), rfl, ?_⟩
+        rw [mem_whiskerRight]
+        change (z, x) = (z', x') ∧ y = y'
+        grind only
+    · rintro ⟨⟨x'', ⟨z'', y''⟩⟩, hw, ⟨q, hα₁, hrest⟩⟩
+      rw [mem_whiskerLeft] at hw
+      change x = x'' ∧ (z, y) = (z'', y'') at hw
+      change ((x'', z''), y'') = q at hα₁
+      subst q; rw [mem_whiskerRight] at hrest
+      change (z'', x'') = (z', x') ∧ y'' = y' at hrest
+      refine ⟨((x, y), z), rfl, ⟨(z, (x, y)), rfl, ?_⟩⟩
+      change ((z, x), y) = ((z', x'), y')
+      grind only
+
+instance symmetricCategory : SymmetricCategory RelCat.{u} where
+  symmetry X Y := by
+    apply Hom.ext; ext ⟨⟨x, y⟩, ⟨x', y'⟩⟩
+    rw [Hom.rel_comp, mem_comp, Hom.rel_id, mem_id]
+    constructor
+    · rintro ⟨⟨y'', x''⟩, hβ₁, hβ₂⟩
+      change (y, x) = (y'', x'') at hβ₁
+      change (x'', y'') = (x', y') at hβ₂
+      grind only
+    · intro h; exact ⟨(y, x), by tauto, h⟩
 
 /-! ### Dagger morphisms in `RelCat` -/
 
