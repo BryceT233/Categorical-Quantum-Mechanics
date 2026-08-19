@@ -9,7 +9,44 @@ public import CQM1.Category.DaggerCategory
 public import Mathlib.Analysis.InnerProductSpace.TensorProduct
 public import Mathlib.RingTheory.PicardGroup
 
-/-! xxxxx **Assisted by Deepseek Harness** -/
+/-!
+# The category of qudits
+
+This file defines `QuditCat`, the category of qudits: objects are finite-dimensional
+complex Hilbert spaces (the state spaces of qudits) and morphisms are linear maps between
+them. The category is equipped with a dagger structure given by the adjoint, a monoidal
+structure given by the tensor product, and it is shown that these interact to form a
+braided, symmetric monoidal dagger category. The file also sets up Dirac bra-ket notation,
+the standard `n`-dimensional Hilbert space `ℂⁿ` with its computational basis, and the
+usual single-qubit gates.
+
+## Main definitions
+
+* `QuditCat`: the category of finite-dimensional complex Hilbert spaces.
+* `QuditCat.Hom`: a morphism between two qudits, i.e. a linear map of the underlying
+  state spaces.
+* `QuditCat.bra` and `QuditCat.ket`: the bra and ket maps of a state.
+* `QuditCat.std` and `QuditCat.ZBasis`: the standard `n`-dimensional Hilbert space and
+  its computational basis.
+* `QuditCat.matrixToEnd`: a matrix, interpreted as an endomorphism of the standard space.
+* `QuditCat.Qubit`: the 2-dimensional qubit space.
+
+## Notation
+
+* `⟨a|` is notation for the bra functional of a state `a`.
+* `|b⟩` is notation for the ket map of a state `b`.
+* `⟨v|u⟩` is notation for the inner product of `v` and `u`.
+
+## Main results
+
+* `QuditCat` is a dagger category, a braided monoidal category, a symmetric monoidal
+  category, and a monoidal dagger category.
+* `isUnitary_matrixToEnd_iff` characterizes unitary matrices by `M * star M = 1`.
+
+## Implementation notes
+
+The universe level of state spaces is fixed to `Type` for simplicity.
+-/
 
 @[expose] public section
 
@@ -20,6 +57,7 @@ for simplicity. Objects in this category represent finite-dimensional quantum st
 structure QuditCat where
   /-- Construct an object in `QuditCat` from a state space. -/
   of ::
+  /-- The underlying finite-dimensional Hilbert space of a qudit. -/
   State : Type
   [isNormedAddCommGroup : NormedAddCommGroup State]
   [isInnerProductSpace : InnerProductSpace ℂ State]
@@ -52,6 +90,7 @@ section Hom
 @[ext]
 structure Hom (H₁ H₂ : QuditCat) where
   private mk ::
+  /-- The underlying linear map between the state spaces. -/
   hom' : H₁.State →ₗ[ℂ] H₂.State
 
 set_option backward.privateInPublic true in
@@ -258,6 +297,27 @@ instance monoidalDaggerCategory : MonoidalDaggerCategory QuditCat where
     rw [← toLinearEquiv_ridIsometry]
     exact isUnitary_isoMk_coe_linearIsometry ..
 
+instance : BraidedCategory QuditCat where
+  braiding H₁ H₂ := isoMk (TensorProduct.comm ..)
+  braiding_naturality_left f H := by
+    apply hom_ext; apply TensorProduct.ext'
+    intros; rfl
+  braiding_naturality_right H f K g := by
+    apply hom_ext; apply TensorProduct.ext'
+    intros; rfl
+  hexagon_forward H K L := by
+    apply hom_ext; apply TensorProduct.ext_threefold
+    intros; rfl
+  hexagon_reverse H K L := by
+    apply hom_ext; apply TensorProduct.ext_threefold'
+    intros; rfl
+
+instance symmetricCategory : SymmetricCategory QuditCat where
+  symmetry H₁ H₂ := by
+    apply hom_ext
+    rw [hom_comp, hom_id]
+    exact TensorProduct.comm_comp_comm ..
+
 end
 
 section braket
@@ -265,6 +325,7 @@ section braket
 /-- Converts a quantum state `a : H.State` into its corresponding bra functional `⟨a|`. -/
 noncomputable def bra {H : QuditCat} (a : H.State) : H.State →ₗ[ℂ] ℂ := innerₛₗ ℂ a
 
+/-- Notation `⟨a|` for the bra functional of a state `a`. -/
 notation "⟨" u "|" => bra u
 
 @[simp]
@@ -273,11 +334,13 @@ lemma bra_apply {H : QuditCat} (a b : H.State) : ⟨a| b = inner ℂ a b := rfl
 /-- Converts a quantum state `b : H.State` into its corresponding ket map |b⟩. -/
 def ket {H : QuditCat} (b : H.State) : ℂ →ₗ[ℂ] H.State := .toSpanSingleton ℂ H.State b
 
+/-- Notation `|b⟩` for the ket map of a state `b`. -/
 notation "|" u "⟩" => ket u
 
 @[simp]
 lemma hom_ket_apply {H : QuditCat} (b : H.State) (x : ℂ) : |b⟩ x = x • b := rfl
 
+/-- Notation `⟨v|u⟩` for the inner product of states `v` and `u`. -/
 notation "⟨" v "|" u "⟩" => inner ℂ v u
 
 @[simp]

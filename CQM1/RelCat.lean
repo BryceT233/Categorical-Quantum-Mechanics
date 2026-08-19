@@ -29,6 +29,8 @@ It also characterizes the dagger-derived morphism classes (`IsUnitary`, `IsIsome
 * `isProj_iff_symm_trans`: projections are exactly partial equivalence relations.
 * `isPositive_iff_symm_reflOnDom`: positive morphisms are exactly symmetric relations that are
   reflexive on their domain.
+
+**Assisted by Deepseek Harness**
 -/
 
 @[expose] public section
@@ -220,8 +222,7 @@ theorem isUnitary_graphFunctor_mapIso {X Y : Type u} (e : X ≅ Y) :
     exact (Equiv.graph_inv e.toEquiv).symm
 
 /-- In `RelCat`, a morphism is unitary exactly when it is an isomorphism. -/
-theorem isUnitary_iff_isIso (f : X ⟶ Y) :
-    DaggerCategory.IsUnitary f ↔ IsIso f := by
+theorem isUnitary_iff_isIso (f : X ⟶ Y) : DaggerCategory.IsUnitary f ↔ IsIso f := by
   refine ⟨fun h ↦ h.isIso, fun h ↦ ?_⟩
   rcases (rel_iso_iff f).1 h with ⟨e, he⟩
   rw [← he]
@@ -230,10 +231,9 @@ theorem isUnitary_iff_isIso (f : X ⟶ Y) :
     exact (Equiv.graph_inv e.toEquiv).symm
 
 /-- In `RelCat`, an isometry is exactly a total and injective relation. -/
-theorem isIsometry_iff_leftTotal_leftUnique (f : X ⟶ Y) :
-    DaggerCategory.IsIsometry f ↔
-      Relator.LeftTotal (fun x : X ↦ fun y : Y ↦ (x, y) ∈ f.rel) ∧
-        Relator.LeftUnique (fun x : X ↦ fun y : Y ↦ (x, y) ∈ f.rel) := by
+theorem isIsometry_iff_leftTotal_leftUnique (f : X ⟶ Y) : DaggerCategory.IsIsometry f ↔
+    Relator.LeftTotal (fun x : X ↦ fun y : Y ↦ (x, y) ∈ f.rel) ∧
+      Relator.LeftUnique (fun x : X ↦ fun y : Y ↦ (x, y) ∈ f.rel) := by
   constructor
   · intro h; constructor
     · intro x
@@ -248,8 +248,7 @@ theorem isIsometry_iff_leftTotal_leftUnique (f : X ⟶ Y) :
         exact ⟨y, hxy, (mem_dagger f x' y).2 hx'y⟩
       rw [h.comp_dagger_eq_id, Hom.rel_id, mem_id] at hmem
       exact hmem
-  · intro h; refine ⟨?_⟩
-    apply Hom.ext; ext ⟨x, x'⟩
+  · intro h; constructor; ext ⟨x, x'⟩
     rw [Hom.rel_comp, mem_comp, Hom.rel_id, mem_id]
     simp only; constructor
     · rintro ⟨y, hxy, hyx'⟩
@@ -261,13 +260,13 @@ theorem isIsometry_iff_leftTotal_leftUnique (f : X ⟶ Y) :
 
 /-- In `RelCat`, a projection is exactly a symmetric and transitive relation, i.e. a partial
 equivalence relation. -/
-theorem isProj_iff_symm_trans (f : End X) :
-    DaggerCategory.IsProj f ↔ f.rel.IsSymm ∧ f.rel.IsTrans := by
+theorem isProj_iff_symm_trans (f : End X) : DaggerCategory.IsProj f ↔
+    f.rel.IsSymm ∧ f.rel.IsTrans := by
   constructor
   · intro h; constructor
     · have hself : f†.rel = f.rel := congrArg Hom.rel h.selfAdjoint
       rw [rel_dagger] at hself
-      exact (SetRel.inv_eq_self_iff).1 hself
+      exact SetRel.inv_eq_self_iff.1 hself
     · have hrel : (f ≫ f).rel = f.rel := congrArg Hom.rel h.idem
       rw [Hom.rel_comp] at hrel
       exact SetRel.isTrans_iff_comp_subset_self.2 (by simp [hrel])
@@ -289,8 +288,7 @@ domain. -/
 theorem isPositive_iff_isSymm_reflOnDom (f : End X) : DaggerCategory.IsPositive f ↔
     f.rel.IsSymm ∧ ∀ x : X, (∃ x' : X, (x, x') ∈ f.rel) → (x, x) ∈ f.rel := by
   constructor
-  · intro h; rcases h.out with ⟨Y, g, hfg⟩
-    constructor
+  · rintro ⟨Y, g, hfg⟩; constructor
     · constructor; intro a b hab
       rw [hfg, Hom.rel_comp, mem_comp] at hab ⊢
       rcases hab with ⟨y, hay, hyb⟩
