@@ -6,7 +6,10 @@ Authors: Bingyu Xia
 module
 
 public import CQM1.Category.DaggerCategory
-public import Mathlib
+public import Mathlib.CategoryTheory.Category.RelCat
+public import Mathlib.CategoryTheory.Monoidal.Types.Basic
+public import Mathlib.Data.Set.BooleanAlgebra
+public import Mathlib.Order.CompletePartialOrder
 
 /-!
 # The monoidal dagger structure on the category of relations
