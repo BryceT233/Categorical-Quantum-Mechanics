@@ -1,0 +1,5 @@
+# 所有文本文件统一使用 LF 换行符
+* text=auto eol=lf
+
+# 特别指定 Lean 源文件使用 LF
+*.lean text eol=lf

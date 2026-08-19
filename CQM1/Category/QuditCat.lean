@@ -56,14 +56,14 @@ structure Hom (H₁ H₂ : QuditCat) where
 
 set_option backward.privateInPublic true in
 set_option backward.privateInPublic.warn false in
-instance : LargeCategory QuditCat where
+instance largeCategory : LargeCategory QuditCat where
   Hom H₁ H₂ := Hom H₁ H₂
   id _ := ⟨LinearMap.id⟩
   comp f g := ⟨g.hom'.comp f.hom'⟩
 
 set_option backward.privateInPublic true in
 set_option backward.privateInPublic.warn false in
-instance : ConcreteCategory QuditCat (fun H₁ H₂ ↦ H₁.State →ₗ[ℂ] H₂.State) where
+instance concreteCategory : ConcreteCategory QuditCat (fun H₁ H₂ ↦ H₁.State →ₗ[ℂ] H₂.State) where
   hom := Hom.hom'
   ofHom := Hom.mk
 
@@ -166,7 +166,7 @@ def linearEquivOfIso {H₁ H₂ : QuditCat} (i : H₁ ≅ H₂) : H₁.State ≃
 
 end Hom
 
-noncomputable instance : DaggerCategory QuditCat where
+noncomputable instance daggerCategory : DaggerCategory QuditCat where
   dagger f := ofHom (f.hom.adjoint)
   dagger_comp f g := by simp
   dagger_id f := by simp
@@ -177,11 +177,11 @@ open DaggerCategory
 @[simp]
 lemma hom_dagger {H₁ H₂ : QuditCat} (f : H₁ ⟶ H₂) : f†.hom = f.hom.adjoint := rfl
 
-section
+noncomputable section
 
 open TensorProduct MonoidalCategory
 
-noncomputable instance : MonoidalCategoryStruct QuditCat where
+instance : MonoidalCategoryStruct QuditCat where
   tensorObj H₁ H₂ := of (H₁.State ⊗[ℂ] H₂.State)
   whiskerLeft _ _ _ f := ofHom (TensorProduct.map LinearMap.id f.hom)
   whiskerRight f _ := ofHom (TensorProduct.map f.hom LinearMap.id)
@@ -190,7 +190,7 @@ noncomputable instance : MonoidalCategoryStruct QuditCat where
   leftUnitor X := isoMk (TensorProduct.lid ℂ X.State)
   rightUnitor X := isoMk (TensorProduct.rid ℂ X.State)
 
-noncomputable instance : MonoidalCategory QuditCat where
+instance : MonoidalCategory QuditCat where
   id_tensorHom_id X₁ X₂ := by
     apply hom_ext; apply TensorProduct.ext'
     intros; rfl
@@ -234,30 +234,29 @@ lemma hom_tensorHom {X₁ Y₁ X₂ Y₂ : QuditCat} (f : X₁ ⟶ Y₁) (g : X�
   apply TensorProduct.ext'
   intros; rfl
 
-private lemma dagger_associator (H₁ H₂ H₃ : QuditCat) :
-    (α_ H₁ H₂ H₃).hom† = (α_ H₁ H₂ H₃).inv := hom_ext <|
-  (assocIsometry ℂ H₁.State H₂.State H₃.State).adjoint_toLinearMap_eq_symm
+lemma isUnitary_isoMk_coe_linearIsometry {H₁ H₂ : QuditCat} (e : H₁.State ≃ₗᵢ[ℂ] H₂.State) :
+    IsUnitary (c₁ := H₁) (c₂ := H₂) (isoMk e.toLinearEquiv).hom := by
+  apply isUnitary_of_dagger_eq_inv
+  apply hom_ext
+  exact e.adjoint_toLinearMap_eq_symm
 
-private lemma dagger_leftUnitor (H : QuditCat) :
-    (λ_ H).hom† = (λ_ H).inv := hom_ext <|
-  (lidIsometry ℂ H.State).adjoint_toLinearMap_eq_symm
-
-private lemma dagger_rightUnitor (H : QuditCat) :
-    (ρ_ H).hom† = (ρ_ H).inv := hom_ext <|
-  (ridIsometry ℂ H.State).adjoint_toLinearMap_eq_symm
-
-@[no_expose]
-noncomputable instance : MonoidalDaggerCategory QuditCat where
+instance monoidalDaggerCategory : MonoidalDaggerCategory QuditCat where
   dagger_tensor f₁ f₂ := by
     apply hom_ext
     rw [hom_dagger, hom_tensorHom f₁ f₂, hom_tensorHom f₁† f₂†]
     exact adjoint_map f₁.hom f₂.hom
-  isUnitary_associator H₁ H₂ H₃ :=
-    isUnitary_of_dagger_eq_inv (α_ H₁ H₂ H₃) (dagger_associator H₁ H₂ H₃)
-  isUnitary_leftUnitor H :=
-    isUnitary_of_dagger_eq_inv (λ_ H) (dagger_leftUnitor H)
-  isUnitary_rightUnitor H :=
-    isUnitary_of_dagger_eq_inv (ρ_ H) (dagger_rightUnitor H)
+  isUnitary_associator H₁ H₂ H₃ := by
+    dsimp [associator]
+    rw [← toLinearEquiv_assocIsometry]
+    exact isUnitary_isoMk_coe_linearIsometry ..
+  isUnitary_leftUnitor H := by
+    dsimp [leftUnitor]
+    rw [← toLinearEquiv_lidIsometry]
+    exact isUnitary_isoMk_coe_linearIsometry ..
+  isUnitary_rightUnitor H := by
+    dsimp [rightUnitor]
+    rw [← toLinearEquiv_ridIsometry]
+    exact isUnitary_isoMk_coe_linearIsometry ..
 
 end
 
@@ -395,7 +394,7 @@ def phaseShift (ϕ : ℝ) : End Qubit := matrixToEnd !![1, 0; 0, exp (ϕ * I)]
 /-- Hadamard gate as an endomorphism of `Qubit`. -/
 def H : End Qubit := matrixToEnd (((√2)⁻¹ : ℂ) • !![1, 1; 1, -1])
 
-instance : DaggerCategory.IsUnitary H := by
+instance isUnitary_H : IsUnitary H := by
   rw [H, isUnitary_matrixToEnd_iff_fin_two]
   suffices (2⁻¹ : ℝ) + 2⁻¹ = 1 by simpa
   linarith
