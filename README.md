@@ -1,1 +1,1 @@
-# **Assisted by Deepseek Harness**
+**Assisted by Deepseek Harness**
