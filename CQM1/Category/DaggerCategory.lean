@@ -108,6 +108,18 @@ instance IsIsometry.comp {c₁ c₂ c₃ : C} (f : c₁ ⟶ c₂) (g : c₂ ⟶ 
     rw [dagger_comp, Category.assoc]
     nth_rw 2 [Category.assoc']; simp
 
+/-- An isometry is a split monomorphism with retraction its dagger. -/
+instance IsIsometry.isSplitMono {c₁ c₂ : C} (f : c₁ ⟶ c₂) [IsIsometry f] : IsSplitMono f :=
+  .mk' { retraction := f†, id := IsIsometry.comp_dagger_eq_id f }
+
+/-- The composite `f† ≫ f` of an isometry is a projection (onto its image). -/
+instance IsIsometry.isProj_dagger_comp {c₁ c₂ : C} (f : c₁ ⟶ c₂) [IsIsometry f] :
+    IsProj (f† ≫ f) where
+  idem := by
+    rw [isIdempotentElem_iff, End.mul_def, Category.assoc]
+    nth_rw 2 [Category.assoc']; simp
+  selfAdjoint := by simp
+
 /-- If `k` is an isometry, a factorization `m ≫ f = x` determines `m` uniquely: `m = x ≫ f†`. -/
 lemma IsIsometry.eq_dagger_comp_of_comp_eq {c₁ c₂ c₃ : C} (f : c₁ ⟶ c₂) [IsIsometry f]
     {m : c₃ ⟶ c₁} {x : c₃ ⟶ c₂} (h : m ≫ f = x) : m = x ≫ f† := by
@@ -190,15 +202,29 @@ lemma isZero_of_isTerminal {c : C} (term : IsTerminal c) : IsZero c where
 
 section kernel
 
-variable [HasZeroMorphisms C]
+/-- If `f` has a dagger kernel, the canonical factorization `kernel.lift f g hg` is
+`g ≫ (kernel.ι f)†`. -/
+lemma kernelLift_eq_dagger_comp [HasZeroMorphisms C] {X Y Z : C} (f : X ⟶ Y) [HasKernel f]
+    [IsIsometry (kernel.ι f)] {g : Z ⟶ X} (hg : g ≫ f = 0) :
+    kernel.lift f g hg = g ≫ (kernel.ι f)† :=
+  IsIsometry.eq_dagger_comp_of_comp_eq (kernel.ι f) (kernel.lift_ι f g hg)
 
-/-- The factorization through a dagger kernel is unique and given by the dagger: if `k : K ⟶ X`
-is an isometry and a kernel of `f : X ⟶ Y`, then any `g : Z ⟶ X` with `g ≫ f = 0` factors through
-`k` uniquely as `g ≫ k†`. -/
-lemma kernel_lift_eq_dagger_comp {K X Y Z : C} {f : X ⟶ Y} (k : K ⟶ X) [IsIsometry k]
-    (comp : k ≫ f = 0) (ker : IsLimit (KernelFork.ofι k comp)) {g : Z ⟶ X} (hg : g ≫ f = 0) :
-    Fork.IsLimit.lift ker g (by simpa) = g ≫ k† :=
-  IsIsometry.eq_dagger_comp_of_comp_eq k (by simpa using (Fork.IsLimit.lift_ι' ker g (by simpa)))
+/-- Any dagger kernel `k` of `f` is unitarily isomorphic to the canonical `kernel f`. -/
+theorem kernelIso_daggerKernel [HasZeroMorphisms C] {K X Y : C} {f : X ⟶ Y} (k : K ⟶ X)
+    [IsIsometry k] (comp : k ≫ f = 0) (ker : IsLimit (KernelFork.ofι k comp))
+    [HasKernel f] [IsIsometry (kernel.ι f)] :
+    IsUnitary (IsLimit.conePointUniqueUpToIso (kernelIsKernel f) ker).hom := by
+  let i : kernel f ≅ K := IsLimit.conePointUniqueUpToIso (kernelIsKernel f) ker
+  apply isUnitary_of_dagger_eq_inv i
+  have hi_hom : i.hom ≫ k = kernel.ι f :=
+    IsLimit.conePointUniqueUpToIso_hom_comp (kernelIsKernel f) ker WalkingParallelPair.zero
+  have hi_inv : i.inv ≫ kernel.ι f = k :=
+    IsLimit.conePointUniqueUpToIso_inv_comp (kernelIsKernel f) ker WalkingParallelPair.zero
+  calc
+    _ = ((kernel.ι f) ≫ k†)† := by
+      rw [IsIsometry.eq_dagger_comp_of_comp_eq k hi_hom]
+    _ = k ≫ (kernel.ι f)† := by simp
+    _ = i.inv := (IsIsometry.eq_dagger_comp_of_comp_eq (kernel.ι f) hi_inv).symm
 
 end kernel
 
