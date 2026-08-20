@@ -158,6 +158,12 @@ instance IsPositive.dagger {c : C} (f : End c) [IsPositive f] : IsPositive f† 
   rcases IsPositive.out f with ⟨c', g, rfl⟩
   simpa
 
+/-- A positive endomorphism is self-adjoint. -/
+@[simp]
+lemma selfAdjoint_of_isPositive {c : C} (f : End c) [IsPositive f] : f† = f := by
+  rcases IsPositive.out f with ⟨c', g, rfl⟩
+  simp
+
 open Limits
 
 attribute [local instance] HasZeroObject.zero' in

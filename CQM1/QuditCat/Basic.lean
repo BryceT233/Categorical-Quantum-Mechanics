@@ -6,6 +6,7 @@ Authors: Bingyu Xia
 module
 
 public import CQM1.Category.DaggerCategory
+public import Mathlib.Analysis.InnerProductSpace.Positive
 public import Mathlib.Analysis.InnerProductSpace.TensorProduct
 public import Mathlib.RingTheory.PicardGroup
 
@@ -216,6 +217,106 @@ open DaggerCategory
 @[simp]
 lemma hom_dagger {H₁ H₂ : QuditCat} (f : H₁ ⟶ H₂) : f†.hom = f.hom.adjoint := rfl
 
+/-- An isometry `f` has an injective underlying linear map. -/
+lemma hom_injective_of_isIsometry {H₁ H₂ : QuditCat} (f : H₁ ⟶ H₂) [IsIsometry f] :
+    Function.Injective f.hom :=
+  LinearMap.injective_of_comp_eq_id (f := f.hom) (g := f†.hom)
+    (congrArg (fun g : H₁ ⟶ H₁ ↦ g.hom) (IsIsometry.comp_dagger_eq_id f))
+
+/-- An isometry `f` preserves inner products. -/
+@[simp]
+lemma inner_map_map_of_isIsometry {H₁ H₂ : QuditCat} (f : H₁ ⟶ H₂) [IsIsometry f]
+    (x y : H₁.State) : inner ℂ (f.hom x) (f.hom y) = inner ℂ x y := by
+  have hadj : LinearMap.adjoint (f.hom) (f.hom y) = y :=
+    congrArg (fun g : H₁ ⟶ H₁ ↦ g.hom y) (IsIsometry.comp_dagger_eq_id f)
+  rw [← LinearMap.adjoint_inner_right, hadj]
+
+/-- An isometry `f` preserves norms. -/
+@[simp]
+lemma norm_hom_of_isIsometry {H₁ H₂ : QuditCat} (f : H₁ ⟶ H₂) [IsIsometry f] (x : H₁.State) :
+    ‖f.hom x‖ = ‖x‖ :=
+  (LinearMap.norm_map_iff_inner_map_map f.hom).mpr (inner_map_map_of_isIsometry f) x
+
+/-- An isometric morphism, viewed as a linear isometric map between its state spaces. -/
+noncomputable def LIOfIsIsometry {H₁ H₂ : QuditCat} (f : H₁ ⟶ H₂) [IsIsometry f] :
+    H₁.State →ₗᵢ[ℂ] H₂.State where
+  __ := f.hom
+  norm_map' := norm_hom_of_isIsometry f
+
+@[simp]
+lemma LIOfIsIsometry_apply {H₁ H₂ : QuditCat} (f : H₁ ⟶ H₂) [IsIsometry f]
+    (x : H₁.State) : LIOfIsIsometry f x = f.hom x := rfl
+
+lemma LIOfIsIsometry_toLinearMap {H₁ H₂ : QuditCat} (f : H₁ ⟶ H₂) [IsIsometry f] :
+    (LIOfIsIsometry f).toLinearMap = f.hom := rfl
+
+/-- A unitary `f` has a surjective underlying linear map. -/
+lemma hom_surjective_of_isUnitary {H₁ H₂ : QuditCat} (f : H₁ ⟶ H₂) [IsUnitary f] :
+    Function.Surjective f.hom :=
+  LinearMap.surjective_of_comp_eq_id (f := f†.hom) (g := f.hom)
+    (congrArg (fun g : H₂ ⟶ H₂ ↦ g.hom) (IsUnitary.dagger_comp_eq_id f))
+
+/-- A unitary morphism, viewed as a linear isometric equivalence between its state spaces. -/
+noncomputable def LIEquivOfIsUnitary {H₁ H₂ : QuditCat} (f : H₁ ⟶ H₂) [IsUnitary f] :
+    H₁.State ≃ₗᵢ[ℂ] H₂.State where
+  __ := f.hom
+  invFun := f†.hom
+  left_inv := by
+    rw [Function.leftInverse_iff_comp, LinearMap.toFun_eq_coe, ← LinearMap.coe_comp, ← hom_comp]
+    simp
+  right_inv := by
+    rw [Function.rightInverse_iff_comp, LinearMap.toFun_eq_coe, ← LinearMap.coe_comp, ← hom_comp]
+    simp
+  norm_map' _ := norm_hom_of_isIsometry ..
+
+@[simp]
+lemma LIEquivOfIsUnitary_apply {H₁ H₂ : QuditCat} (f : H₁ ⟶ H₂) [IsUnitary f]
+    (x : H₁.State) : LIEquivOfIsUnitary f x = f.hom x := rfl
+
+lemma LIEquivOfIsUnitary_toLinearMap {H₁ H₂ : QuditCat} (f : H₁ ⟶ H₂) [IsUnitary f] :
+    (LIEquivOfIsUnitary f).toLinearMap = f.hom := rfl
+
+lemma LIEquivOfIsUnitary_symm_toLinearMap {H₁ H₂ : QuditCat} (f : H₁ ⟶ H₂) [IsUnitary f] :
+    ((LIEquivOfIsUnitary f).symm : H₂.State →ₗ[ℂ] H₁.State) = f†.hom := rfl
+
+/-- A unitary morphism, viewed as a linear isometry, is the linear isometry associated to it
+as an isometry. -/
+lemma LIEquivOfIsUnitary_toLinearIsometry {H₁ H₂ : QuditCat} (f : H₁ ⟶ H₂) [IsUnitary f] :
+    (LIEquivOfIsUnitary f).toLinearIsometry = LIOfIsIsometry f := rfl
+
+lemma isUnitary_isoMk_coe_LIEquiv {H₁ H₂ : QuditCat} (e : H₁.State ≃ₗᵢ[ℂ] H₂.State) :
+    IsUnitary (c₁ := H₁) (c₂ := H₂) (isoMk e.toLinearEquiv).hom := by
+  apply isUnitary_of_dagger_eq_inv
+  apply hom_ext
+  exact e.adjoint_toLinearMap_eq_symm
+
+/-- A projection `f` has a self-adjoint underlying linear map. -/
+lemma hom_adjoint_of_isProj {H : QuditCat} (f : End H) [IsProj f] :
+    LinearMap.adjoint f.hom = f.hom :=
+  congrArg (fun g : End H ↦ g.hom) (IsProj.selfAdjoint f)
+
+/-- A projection `f` has an idempotent underlying linear map. -/
+lemma hom_idem_of_isProj {H : QuditCat} (f : End H) [IsProj f] :
+    f.hom ∘ₗ f.hom = f.hom :=
+  congrArg (fun g : End H ↦ g.hom) (IsProj.comp_self f)
+
+/-- The underlying linear map of a positive morphism is positive, in the sense of
+`LinearMap.IsPositive`. -/
+lemma hom_isPositive_of_isPositive {H : QuditCat} (f : End H) [IsPositive f] :
+    LinearMap.IsPositive f.hom := by
+  rcases IsPositive.out f with ⟨H', g, rfl⟩
+  simpa [hom_comp, hom_dagger] using LinearMap.isPositive_adjoint_comp_self (g.hom)
+
+/-- A positive morphism `f` has a self-adjoint underlying linear map. -/
+lemma hom_adjoint_of_isPositive {H : QuditCat} (f : End H) [IsPositive f] :
+    LinearMap.adjoint f.hom = f.hom :=
+  congrArg (fun g : End H ↦ g.hom) (selfAdjoint_of_isPositive f)
+
+/-- A positive morphism `f` is positive semidefinite. -/
+lemma inner_self_nonneg_of_isPositive {H : QuditCat} (f : End H) [IsPositive f] (x : H.State) :
+    0 ≤ RCLike.re (inner ℂ (f.hom x) x) :=
+  (hom_isPositive_of_isPositive f).re_inner_nonneg_left x
+
 noncomputable section
 
 open TensorProduct MonoidalCategory
@@ -273,12 +374,6 @@ lemma hom_tensorHom {X₁ Y₁ X₂ Y₂ : QuditCat} (f : X₁ ⟶ Y₁) (g : X�
   apply TensorProduct.ext'
   intros; rfl
 
-lemma isUnitary_isoMk_coe_linearIsometry {H₁ H₂ : QuditCat} (e : H₁.State ≃ₗᵢ[ℂ] H₂.State) :
-    IsUnitary (c₁ := H₁) (c₂ := H₂) (isoMk e.toLinearEquiv).hom := by
-  apply isUnitary_of_dagger_eq_inv
-  apply hom_ext
-  exact e.adjoint_toLinearMap_eq_symm
-
 instance monoidalDaggerCategory : MonoidalDaggerCategory QuditCat where
   dagger_tensor f₁ f₂ := by
     apply hom_ext
@@ -287,15 +382,15 @@ instance monoidalDaggerCategory : MonoidalDaggerCategory QuditCat where
   isUnitary_associator H₁ H₂ H₃ := by
     dsimp [associator]
     rw [← toLinearEquiv_assocIsometry]
-    exact isUnitary_isoMk_coe_linearIsometry ..
+    exact isUnitary_isoMk_coe_LIEquiv ..
   isUnitary_leftUnitor H := by
     dsimp [leftUnitor]
     rw [← toLinearEquiv_lidIsometry]
-    exact isUnitary_isoMk_coe_linearIsometry ..
+    exact isUnitary_isoMk_coe_LIEquiv ..
   isUnitary_rightUnitor H := by
     dsimp [rightUnitor]
     rw [← toLinearEquiv_ridIsometry]
-    exact isUnitary_isoMk_coe_linearIsometry ..
+    exact isUnitary_isoMk_coe_LIEquiv ..
 
 instance : BraidedCategory QuditCat where
   braiding H₁ H₂ := isoMk (TensorProduct.comm ..)

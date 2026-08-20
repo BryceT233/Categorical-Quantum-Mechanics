@@ -346,10 +346,9 @@ theorem isIsometry_iff_leftTotal_leftUnique (f : X ⟶ Y) : DaggerCategory.IsIso
     simp only; constructor
     · rintro ⟨y, hxy, hyx'⟩
       exact h.2 hxy ((mem_dagger f x' y).1 hyx')
-    · intro hxx'; subst hxx'
+    · intro rfl
       rcases h.1 x with ⟨y, hy⟩
-      refine ⟨y, hy, ?_⟩
-      exact (mem_dagger f x y).2 hy
+      exact ⟨y, hy, (mem_dagger f x y).2 hy⟩
 
 /-- In `RelCat`, a projection is exactly a symmetric and transitive relation, i.e. a partial
 equivalence relation. -/

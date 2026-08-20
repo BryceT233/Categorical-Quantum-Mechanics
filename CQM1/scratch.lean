@@ -3,4 +3,4 @@ import Mathlib
 open CategoryTheory
 
 #print SymmetricCategory
-#print BraidedCategory
+#print smul_eq_mul
