@@ -7,7 +7,7 @@ module
 
 public import Mathlib.Algebra.Group.Idempotent
 public import Mathlib.CategoryTheory.Endomorphism
-public import Mathlib.CategoryTheory.Limits.Shapes.ZeroMorphisms
+public import Mathlib.CategoryTheory.Limits.Shapes.Kernels
 public import Mathlib.CategoryTheory.Monoidal.Category
 public import Mathlib.Combinatorics.Quiver.ReflQuiver
 
@@ -40,9 +40,9 @@ structure.
 * `dagger_zero`: the dagger of a zero morphism is zero.
 * `isZero_of_isInitial` and `isZero_of_isTerminal`: in a dagger category, initial and
   terminal objects are zero objects.
--/
 
-@[expose] public section
+**Assisted by Deepseek Harness**
+-/
 
 @[expose] public section
 
@@ -108,6 +108,11 @@ instance IsIsometry.comp {c₁ c₂ c₃ : C} (f : c₁ ⟶ c₂) (g : c₂ ⟶ 
     rw [dagger_comp, Category.assoc]
     nth_rw 2 [Category.assoc']; simp
 
+/-- If `k` is an isometry, a factorization `m ≫ f = x` determines `m` uniquely: `m = x ≫ f†`. -/
+lemma IsIsometry.eq_dagger_comp_of_comp_eq {c₁ c₂ c₃ : C} (f : c₁ ⟶ c₂) [IsIsometry f]
+    {m : c₃ ⟶ c₁} {x : c₃ ⟶ c₂} (h : m ≫ f = x) : m = x ≫ f† := by
+  rw [(Category.comp_id m).symm, ← IsIsometry.comp_dagger_eq_id f, ← Category.assoc, h]
+
 /-- An isometry that also satisfies `f† ≫ f = 𝟙`, i.e. a unitary morphism. -/
 class IsUnitary [DaggerCategory C] {c₁ c₂ : C} (f : c₁ ⟶ c₂) extends IsIsometry f where
   dagger_comp_eq_id (f) : f† ≫ f = 𝟙 c₂
@@ -159,7 +164,6 @@ instance IsPositive.dagger {c : C} (f : End c) [IsPositive f] : IsPositive f† 
   simpa
 
 /-- A positive endomorphism is self-adjoint. -/
-@[simp]
 lemma selfAdjoint_of_isPositive {c : C} (f : End c) [IsPositive f] : f† = f := by
   rcases IsPositive.out f with ⟨c', g, rfl⟩
   simp
@@ -184,8 +188,23 @@ lemma isZero_of_isTerminal {c : C} (term : IsTerminal c) : IsZero c where
   unique_to c' := ⟨have := isTerminalEquivUnique _ _ term c'; Equiv.unique (daggerEquiv ..)⟩
   unique_from c' := ⟨isTerminalEquivUnique _ _ term c'⟩
 
+section kernel
+
+variable [HasZeroMorphisms C]
+
+/-- The factorization through a dagger kernel is unique and given by the dagger: if `k : K ⟶ X`
+is an isometry and a kernel of `f : X ⟶ Y`, then any `g : Z ⟶ X` with `g ≫ f = 0` factors through
+`k` uniquely as `g ≫ k†`. -/
+lemma kernel_lift_eq_dagger_comp {K X Y Z : C} {f : X ⟶ Y} (k : K ⟶ X) [IsIsometry k]
+    (comp : k ≫ f = 0) (ker : IsLimit (KernelFork.ofι k comp)) {g : Z ⟶ X} (hg : g ≫ f = 0) :
+    Fork.IsLimit.lift ker g (by simpa) = g ≫ k† :=
+  IsIsometry.eq_dagger_comp_of_comp_eq k (by simpa using (Fork.IsLimit.lift_ι' ker g (by simpa)))
+
+end kernel
+
 end CategoryTheory.DaggerCategory
 
+open Category
 open MonoidalCategory
 
 /-- A dagger category that is also monoidal, with the dagger compatible with the tensor product
@@ -197,8 +216,7 @@ class CategoryTheory.MonoidalDaggerCategory (C : Type u) [Category.{v} C] extend
   isUnitary_leftUnitor (H : C) : DaggerCategory.IsUnitary (λ_ H).hom
   isUnitary_rightUnitor (H : C) : DaggerCategory.IsUnitary (ρ_ H).hom
 
-attribute [instance] CategoryTheory.MonoidalDaggerCategory.isUnitary_associator
-attribute [instance] CategoryTheory.MonoidalDaggerCategory.isUnitary_leftUnitor
-attribute [instance] CategoryTheory.MonoidalDaggerCategory.isUnitary_rightUnitor
+attribute [instance] MonoidalDaggerCategory.isUnitary_associator
+MonoidalDaggerCategory.isUnitary_leftUnitor MonoidalDaggerCategory.isUnitary_rightUnitor
 
 end DaggerCategory
