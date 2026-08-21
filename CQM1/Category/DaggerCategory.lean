@@ -19,7 +19,7 @@ contravariant, involutive involution on morphisms that fixes identities and reve
 composition. It also introduces the standard classes of morphisms used in categorical
 quantum mechanics — projections, isometries, unitaries, and positive maps — together
 with monoidal dagger categories, where the dagger is compatible with the monoidal
-structure.
+structure, and dagger kernels, where the canonical kernel map is an isometry.
 
 ## Main definitions
 
@@ -40,6 +40,12 @@ structure.
 * `dagger_zero`: the dagger of a zero morphism is zero.
 * `isZero_of_isInitial` and `isZero_of_isTerminal`: in a dagger category, initial and
   terminal objects are zero objects.
+* `DaggerCategory.IsIsometry.eq_dagger_comp_of_comp_eq`: a factorization through an
+  isometry is unique, given by `x ≫ f†`.
+* `DaggerCategory.kernelLift_eq_dagger_comp`: when `kernel.ι f` is an isometry, the
+  canonical factorization through `kernel f` is `g ≫ (kernel.ι f)†`.
+* `DaggerCategory.kernelIso_daggerKernel`: any dagger kernel of `f` is unitarily
+  isomorphic to the canonical `kernel f`.
 
 **Assisted by Deepseek Harness**
 -/
@@ -183,19 +189,16 @@ lemma selfAdjoint_of_isPositive {c : C} (f : End c) [IsPositive f] : f† = f :=
 open Limits
 
 attribute [local instance] HasZeroObject.zero' in
-/-- Lemma 2.35 in `Categorical Quantum Mechanics: An Introduction`. -/
 @[simp]
 lemma dagger_zero [HasZeroObject C] [HasZeroMorphisms C] {c c' : C} : (0 : c ⟶ c')† = 0 := by
   have := HasZeroObject.uniqueTo c
   rw [← zero_comp (X := c) (Y := 0) (Z := c') (f := 0), dagger_comp,
     Subsingleton.elim (0† : 0 ⟶ c) 0, comp_zero]
 
-/-- Lemma 2.36 in `Categorical Quantum Mechanics: An Introduction`. -/
 lemma isZero_of_isInitial {c : C} (init : IsInitial c) : IsZero c where
   unique_to c' := ⟨isInitialEquivUnique _ _ init c'⟩
   unique_from c' := ⟨have := isInitialEquivUnique _ _ init c'; Equiv.unique (daggerEquiv ..)⟩
 
-/-- Lemma 2.36 in `Categorical Quantum Mechanics: An Introduction`. -/
 lemma isZero_of_isTerminal {c : C} (term : IsTerminal c) : IsZero c where
   unique_to c' := ⟨have := isTerminalEquivUnique _ _ term c'; Equiv.unique (daggerEquiv ..)⟩
   unique_from c' := ⟨isTerminalEquivUnique _ _ term c'⟩
@@ -210,7 +213,7 @@ lemma kernelLift_eq_dagger_comp [HasZeroMorphisms C] {X Y Z : C} (f : X ⟶ Y) [
   IsIsometry.eq_dagger_comp_of_comp_eq (kernel.ι f) (kernel.lift_ι f g hg)
 
 /-- Any dagger kernel `k` of `f` is unitarily isomorphic to the canonical `kernel f`. -/
-theorem kernelIso_daggerKernel [HasZeroMorphisms C] {K X Y : C} {f : X ⟶ Y} (k : K ⟶ X)
+theorem isUnitary_kernelIso [HasZeroMorphisms C] {K X Y : C} {f : X ⟶ Y} (k : K ⟶ X)
     [IsIsometry k] (comp : k ≫ f = 0) (ker : IsLimit (KernelFork.ofι k comp))
     [HasKernel f] [IsIsometry (kernel.ι f)] :
     IsUnitary (IsLimit.conePointUniqueUpToIso (kernelIsKernel f) ker).hom := by
@@ -225,6 +228,35 @@ theorem kernelIso_daggerKernel [HasZeroMorphisms C] {K X Y : C} {f : X ⟶ Y} (k
       rw [IsIsometry.eq_dagger_comp_of_comp_eq k hi_hom]
     _ = k ≫ (kernel.ι f)† := by simp
     _ = i.inv := (IsIsometry.eq_dagger_comp_of_comp_eq (kernel.ι f) hi_inv).symm
+
+attribute [local instance] HasZeroObject.zero' in
+instance [HasZeroObject C] [HasZeroMorphisms C] (c : C) : IsIsometry (0 : 0 ⟶ c) where
+  comp_dagger_eq_id := by simp
+
+instance [HasZeroObject C] [HasZeroMorphisms C] {c₁ c₂ : C} (f : c₁ ⟶ c₂)
+    [IsIsometry f] : HasKernel f where
+  exists_limit := ⟨.mk _ (kernel.isLimitConeZeroCone f)⟩
+
+/-- `HasDaggerKernels C` asserts that every morphism has a kernel and that the canonical kernel
+map `kernel.ι f` is an isometry, i.e. that `C` has dagger kernels of arbitrary morphisms. -/
+class HasDaggerKernels (C : Type u) [Category.{v} C] [DaggerCategory C] [HasZeroMorphisms C]
+extends HasKernels C where
+  isIsometry {X Y : C} (f : X ⟶ Y) : IsIsometry (kernel.ι f)
+
+attribute [instance] HasDaggerKernels.isIsometry
+
+lemma eq_zero_of_comp_dagger_eq_zero [HasZeroObject C] [HasZeroMorphisms C] [HasDaggerKernels C]
+    {c₁ c₂ : C} {f : c₁ ⟶ c₂} (hf : f ≫ f† = 0) : f = 0 := by
+  have hfk : f ≫ (kernel.ι f†)† = 0 := by calc
+    _ = (kernel.ι f† ≫ f†)† := by simp only [dagger_comp, involutive_dagger]
+    _ = (0 : kernel (f†) ⟶ c₁)† := by rw [kernel.condition f†]
+    _ = 0 := dagger_zero
+  calc
+    _ = kernel.lift f† f hf ≫ kernel.ι f† := (kernel.lift_ι f† f hf).symm
+    _ = (f ≫ (kernel.ι f†)†) ≫ kernel.ι f† := by
+      rw [IsIsometry.eq_dagger_comp_of_comp_eq (kernel.ι f†) (kernel.lift_ι f† f hf)]
+    _ = 0 ≫ kernel.ι f† := by rw [hfk]
+    _ = 0 := by simp
 
 end kernel
 

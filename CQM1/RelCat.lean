@@ -303,7 +303,7 @@ instance symmetricCategory : SymmetricCategory RelCat.{u} where
       grind only
     · intro h; exact ⟨(y, x), by tauto, h⟩
 
-/-! ### Dagger morphisms in `RelCat` -/
+/-! ### Morphism properties related to the dagger category structure on `RelCat` -/
 
 variable {X Y : RelCat.{u}}
 
@@ -396,9 +396,7 @@ theorem isPositive_iff_isSymm_reflOnDom (f : End X) : DaggerCategory.IsPositive 
     refine ⟨E, g, ?_⟩; apply Hom.ext
     ext ⟨a, b⟩; constructor
     · intro hab; rw [Hom.rel_comp, mem_comp]
-      refine ⟨⟨(a, b), hab⟩, ?_, ?_⟩
-      · exact (hg a ⟨(a, b), hab⟩).2 (Or.inl rfl)
-      · exact (hg b ⟨(a, b), hab⟩).2 (Or.inr rfl)
+      exact ⟨⟨(a, b), hab⟩, by tauto, by tauto⟩
     · intro hab
       rw [Hom.rel_comp, mem_comp] at hab
       rcases hab with ⟨e, hae, hbe⟩

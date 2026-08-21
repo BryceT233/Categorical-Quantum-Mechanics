@@ -307,7 +307,7 @@ lemma hom_idem_of_isProj {H : QuditCat} (f : End H) [IsProj f] :
 lemma hom_isPositive_of_isPositive {H : QuditCat} (f : End H) [IsPositive f] :
     LinearMap.IsPositive f.hom := by
   rcases IsPositive.out f with ⟨H', g, rfl⟩
-  simpa [hom_comp, hom_dagger] using LinearMap.isPositive_adjoint_comp_self (g.hom)
+  simpa using LinearMap.isPositive_adjoint_comp_self g.hom
 
 /-- A positive morphism `f` has a self-adjoint underlying linear map. -/
 lemma hom_adjoint_of_isPositive {H : QuditCat} (f : End H) [IsPositive f] :
