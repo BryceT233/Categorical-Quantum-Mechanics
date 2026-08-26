@@ -6,7 +6,7 @@ Authors: Bingyu Xia
 module
 
 public import CQM1.Category.DaggerCategory
-public import Mathlib.CategoryTheory.Monoidal.CoherenceLemmas
+public import Mathlib
 
 /-!
 # Scalars, states and effects in a monoidal category
@@ -39,17 +39,15 @@ Born-rule probability of an effect in a state (for a monoidal dagger category).
 
 @[expose] public section
 
-open CategoryTheory
+open CategoryTheory Limits
 
 namespace CategoryTheory.MonoidalCategory
 
 universe u v
 
-variable {C : Type u} [Category.{v} C]
+variable {C : Type u} [Category.{v} C] [MonoidalCategory.{v} C]
 
-section
-
-variable [MonoidalCategory.{v} C]
+section scalar
 
 /-- The scalars of a monoidal category `C`, i.e. the endomorphisms of its monoidal unit
 `𝟙_ C`. They form a commutative monoid (see `Scalar.commMonoid`) and act on every hom-set by
@@ -103,6 +101,8 @@ lemma smul_comp_smul {c₁ c₂ c₃ : C} {s t : Scalar C} {f : c₁ ⟶ c₂} {
     (s • f) ≫ (t • g) = (s * t) • (f ≫ g) := by
   simp [comp_comm, smul_def]
 
+end scalar
+
 /-- A state of an object `c` is a morphism from the monoidal unit `𝟙_ C` into `c`. -/
 abbrev State (c : C) : Type _ := 𝟙_ C ⟶ c
 
@@ -125,11 +125,44 @@ lemma JointState.not_entangled_iff {c₁ c₂ : C} (f : JointState c₁ c₂) :
 /-- An effect on an object `c` is a morphism from `c` into the monoidal unit `𝟙_ C`. -/
 abbrev Effect (c : C) : Type _ := c ⟶ 𝟙_ C
 
-end
+/-- A set of effects `xᵢ : c ⟶ 𝟙_ C` is complete if every nonzero process yields a nonzero
+effect, i.e. if a morphism `f : c' ⟶ c` vanishes after postcomposition with every `xᵢ`, then
+`f = 0`. -/
+def Effect.Complete [HasZeroMorphisms C] {ι : Type*} {c : C} (x : ι → Effect c) : Prop :=
+  ∀ {c' : C} (f : c' ⟶ c), (∀ (i : ι), f ≫ x i = 0) → f = 0
+
+section daggerCat
+
+variable [DaggerCategory C]
+
+/-- disjoint set of effects -/
+def Effect.Disjoint [HasZeroMorphisms C] {ι : Type*} {c : C} (x : ι → Effect c) : Prop :=
+  (∀ (i : ι), (x i)† ≫ x i = 𝟙 (𝟙_ C)) ∧ _root_.Pairwise (fun i j ↦ (x j)† ≫ x i = 0)
+
+lemma Effect.Disjoint.isIsometry_dagger [HasZeroMorphisms C] {ι : Type*} {c : C}
+    (x : ι → Effect c) (hx : Effect.Disjoint x) (i : ι) : DaggerCategory.IsIsometry (x i)† :=
+  ⟨by simpa using hx.1 i⟩
+
+lemma Effect.Disjoint.dagger_comp_eq_zero [HasZeroMorphisms C] {ι : Type*} {c : C}
+    (x : ι → Effect c) (hx : Effect.Disjoint x) {i j : ι} (h : i ≠ j) : (x j)† ≫ (x i) = 0 :=
+  hx.2 h
+
+attribute [local instance] HasZeroObject.zero' in
+/-- A family of effects is complete iff its associated biproduct map has zero kernel. -/
+lemma Effect.complete_iff_zero_kernel [Preadditive C] [HasZeroObject C] [HasZeroMorphisms C] {ι : Type*} {c : C}
+    (x : ι → Effect c) [HasBiproduct (fun _ : ι ↦ 𝟙_ C)] :
+    Effect.Complete x ↔ IsLimit (KernelFork.ofι (f := biproduct.lift x) (0 : 0 ⟶ c) (by simp)) := sorry
+
+/-- A family of effects is disjoint iff the dagger of its associated biproduct map is an
+isometry. -/
+lemma Effect.disjoint_iff_isIsometry_dagger [HasZeroMorphisms C] {ι : Type*} {c : C}
+    (x : ι → Effect c) [HasBiproduct (fun _ : ι ↦ 𝟙_ C)] :
+    Effect.Disjoint x ↔ DaggerCategory.IsIsometry (biproduct.lift x)† := sorry
 
 /-- The probability associated to a state and an effect of an object in a monoidal dagger category,
 given by the scalar `a ≫ x ≫ x† ≫ a†`. -/
-abbrev probability [MonoidalDaggerCategory C] {c : C} (a : State c) (x : Effect c) :
-    Scalar C := a ≫ x ≫ x† ≫ a†
+abbrev probability {c : C} (a : State c) (x : Effect c) : Scalar C := a ≫ x ≫ x† ≫ a†
+
+end daggerCat
 
 end CategoryTheory.MonoidalCategory

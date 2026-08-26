@@ -7,6 +7,7 @@ module
 
 public import Mathlib.Algebra.Group.Idempotent
 public import Mathlib.CategoryTheory.Endomorphism
+public import Mathlib.CategoryTheory.Limits.Shapes.Biproducts
 public import Mathlib.CategoryTheory.Limits.Shapes.Kernels
 public import Mathlib.CategoryTheory.Monoidal.Category
 public import Mathlib.Combinatorics.Quiver.ReflQuiver
@@ -249,14 +250,12 @@ lemma eq_zero_of_comp_dagger_eq_zero [HasZeroObject C] [HasZeroMorphisms C] [Has
     {c₁ c₂ : C} {f : c₁ ⟶ c₂} (hf : f ≫ f† = 0) : f = 0 := by
   have hfk : f ≫ (kernel.ι f†)† = 0 := by calc
     _ = (kernel.ι f† ≫ f†)† := by simp only [dagger_comp, involutive_dagger]
-    _ = (0 : kernel (f†) ⟶ c₁)† := by rw [kernel.condition f†]
-    _ = 0 := dagger_zero
+    _ = _ := by simp [kernel.condition f†]
   calc
     _ = kernel.lift f† f hf ≫ kernel.ι f† := (kernel.lift_ι f† f hf).symm
     _ = (f ≫ (kernel.ι f†)†) ≫ kernel.ι f† := by
       rw [IsIsometry.eq_dagger_comp_of_comp_eq (kernel.ι f†) (kernel.lift_ι f† f hf)]
-    _ = 0 ≫ kernel.ι f† := by rw [hfk]
-    _ = 0 := by simp
+    _ = _ := by simp [hfk]
 
 end kernel
 

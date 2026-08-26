@@ -1,5 +1,6 @@
 import Mathlib
 
+
 open CategoryTheory
 
-#print Limits.HasKernels
+#print Preadditive.preadditiveHasZeroMorphisms
