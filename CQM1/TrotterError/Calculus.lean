@@ -21,7 +21,7 @@ used in the Trotter error theory (arXiv:1912.08854).
 ## Main results
 
 * `iteratedDeriv_exp_smul_const`: the `q`-th iterated derivative of `u ↦ exp (u • A)`.
-* `iteratedDeriv_ofFn_prod`, `iteratedDeriv_list_prod`, `iteratedDeriv_list_prod_general`:
+* `iteratedDeriv_ofFn_prod`, `iteratedDeriv_list_prod_general`:
   the multinomial Leibniz expansion of the `n`-th iterated derivative of a finite product.
 * `sum_piAntidiag_univ_equiv`, `multinomial_univ_equiv`: reindexing `piAntidiag` sums and
   multinomial coefficients by an equivalence of the index type.
@@ -225,18 +225,6 @@ theorem iteratedDeriv_ofFn_prod {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra 
                   (Nat.multinomial (Finset.univ : Finset (Fin (m + 1))) q' : ℝ) •
                     (List.ofFn (fun i : Fin (m + 1) => iteratedDeriv (q' i) (f i) t)).prod)]
 
-/-- The `n`-th iterated derivative of a finite product of `𝔸`-valued functions is the
-multinomial Leibniz expansion. -/
-theorem iteratedDeriv_list_prod {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
-    {m : ℕ} (f : Fin m → ℝ → 𝔸) (n : ℕ) (t : ℝ)
-    (hf : ∀ i, ContDiffAt ℝ n (f i) t) :
-    iteratedDeriv n (fun t : ℝ => ((List.finRange m).map (fun i : Fin m => f i t)).prod) t =
-      ∑ q ∈ Finset.piAntidiag (Finset.univ : Finset (Fin m)) n,
-        (Nat.multinomial (Finset.univ : Finset (Fin m)) q : ℝ) •
-          ((List.finRange m).map (fun i : Fin m => iteratedDeriv (q i) (f i) t)).prod := by
-  simpa [List.ofFn_eq_map, finAntidiagonal_eq_piAntidiag_univ] using
-    iteratedDeriv_ofFn_prod f n t hf
-
 /-- The `n`-th iterated derivative of the product of a family indexed by an arbitrary list `l`
 is the multinomial Leibniz expansion, with multi-indices indexed by the positions `Fin l.length`. -/
 theorem iteratedDeriv_list_prod_general {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
@@ -301,7 +289,7 @@ lemma contDiffAt_exp_smul_const {𝔸 : Type*} [NormedRing 𝔸]
   (NormedSpace.exp_analytic (t • A)).contDiffAt.comp t
     (ContDiffAt.smul (f := fun u : ℝ => u) (g := fun _ : ℝ => A) contDiffAt_id contDiffAt_const)
 
-/-! ### CS19 Lemma 1: big-O scaling iff derivatives vanish at 0 -/
+/-! ### CS19 Supplementary Lemma 1: big-O scaling iff derivatives vanish at 0 -/
 
 /-- If the first `n` iterated derivatives of `F` at `x₀` vanish, then the `n`-th Taylor
 polynomial of `F` at `x₀` is just the leading term `(x - x₀)^n • ((n! : ℝ)⁻¹ • F⁽ⁿ⁾(x₀))`. -/
@@ -323,7 +311,7 @@ lemma taylorWithinEval_eq_smul_of_iteratedDeriv_eq_zero_below
   rw [mul_smul, smul_comm]
 
 /-- A smooth function `F` satisfies `‖F t‖ = O(t^(p + 1))` as `t → 0` if and only if its
-first `p` iterated derivatives vanish at `0` (CS19, Lemma 6). -/
+first `p` iterated derivatives vanish at `0` (CS19, Supplementary Lemma 1). -/
 theorem isBigO_norm_iff_iteratedDeriv_eq_zero
     {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E]
     (F : ℝ → E) (p : ℕ) (hF : ContDiff ℝ ∞ F) :

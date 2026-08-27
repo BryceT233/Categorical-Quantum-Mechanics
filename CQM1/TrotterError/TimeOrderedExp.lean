@@ -27,8 +27,8 @@ The interval integral carries the orientation, so the definition is automaticall
 * `timeOrderedExp_duhamel`: the variation-of-parameters formula (`lem:td_Duhamel`).
 * `timeOrderedExp_interaction_picture`: time-ordered evolution in the interaction picture
   (`lem:interaction_picture`).
-* `fundamentalTheorem_timeOrderedExp`: the fundamental theorem of time-ordered evolution
-  (`lem:fte`).
+* `fundamentalTheorem_timeOrderedExp`, `fundamentalTheorem_timeOrderedExp_unique`: the
+  fundamental theorem of time-ordered evolution and the uniqueness of its generator (`lem:fte`).
 * `timeOrderedExp_const`: `exp_T (fun _ => H) t₁ t₂ = exp ((t₂ - t₁) • H)` (`prelim.tex:41`).
 * `timeOrderedExp_norm_le`, `timeOrderedExp_norm_eq_one_of_skewAdjoint`:
   `‖exp_T H t₁ t₂‖ ≤ Real.exp |∫ τ in t₁..t₂, ‖H τ‖|`, and `= 1` when `H` is skew-adjoint
@@ -36,7 +36,10 @@ The interval integral carries the orientation, so the definition is automaticall
 * `timeOrderedExp_dist_le`, `timeOrderedExp_dist_le_of_skewAdjoint`: distance bounds between
   two evolutions (`cor:time_ordered_distance_bound`).
 * `ode_solution_unique`: uniqueness of solutions to `U' = H·U`.
-* `continuous_timeOrderedExp`: the solution is continuous in its upper limit.
+* `continuous_timeOrderedExp`, `continuous_timeOrderedExp_lower`, `contDiff_timeOrderedExp`:
+  continuity/smoothness of the solution in its upper and lower limits.
+* `timeOrderedExp_sub`: the difference identity between two evolutions
+  (`cor:time_ordered_distance_bound`).
 
 **Assisted by Deepseek Harness**
 -/
@@ -101,11 +104,9 @@ lemma integral_mul_integral_pow_div_factorial (f : ℝ → ℝ) (hf : Continuous
     have hderiv : deriv G t = f t * F t ^ n / Nat.factorial n := by
       dsimp [G]
       rw [deriv_div_const]
-      change deriv (F ^ (n + 1)) t / (Nat.factorial (n + 1) : ℝ) =
-        f t * F t ^ n / Nat.factorial n
-      rw [deriv_pow (hFderiv t).differentiableAt (n + 1), (hFderiv t).deriv]
-      have hsub : n + 1 - 1 = n := by simp
-      rw [hsub, Nat.factorial_succ, Nat.cast_mul]
+      change deriv (F ^ (n + 1)) t / (Nat.factorial (n + 1) : ℝ) = _
+      rw [deriv_pow (hFderiv t).differentiableAt (n + 1), (hFderiv t).deriv, Nat.add_one_sub_one,
+        Nat.factorial_succ, Nat.cast_mul]
       field_simp
     simpa [hderiv] using hdiff.hasDerivAt
   have hFcont : Continuous F :=
@@ -119,8 +120,7 @@ lemma integral_mul_integral_pow_div_factorial (f : ℝ → ℝ) (hf : Continuous
     (∫ τ in a..b, f τ * (∫ u in a..τ, f u) ^ n / Nat.factorial n)
         = ∫ τ in a..b, f τ * F τ ^ n / Nat.factorial n := rfl
     _ = G b - G a := hFTC
-    _ = (∫ u in a..b, f u) ^ (n + 1) / Nat.factorial (n + 1) := by
-        simp [G, F, intervalIntegral.integral_same]
+    _ = (∫ u in a..b, f u) ^ (n + 1) / Nat.factorial (n + 1) := by simp [G, F]
 
 /-- For continuous nonnegative `g`, the two-sided FTC identity
 `|∫ τ in a..b, g τ * |∫ u in a..τ, g u|^n / n!| = |∫ u in a..b, g u|^(n+1) / (n+1)!`.
@@ -144,8 +144,7 @@ lemma abs_integral_mul_abs_integral_pow_div_factorial (g : ℝ → ℝ) (hg : Co
         ∫ τ in a..b, g τ * F τ ^ n / Nat.factorial n := by
       apply intervalIntegral.integral_congr_uIoo
       intro τ hτ
-      dsimp
-      rw [abs_of_nonneg (hFnn_uIoo τ hτ)]
+      simp [abs_of_nonneg (hFnn_uIoo τ hτ)]
     have hnonneg : 0 ≤ ∫ τ in a..b, g τ * F τ ^ n / Nat.factorial n :=
       intervalIntegral.integral_nonneg hab (fun τ hτ =>
         div_nonneg (mul_nonneg (hgnn τ) (pow_nonneg (hFnn_interval τ hτ) n)) (by positivity))
@@ -176,8 +175,7 @@ lemma abs_integral_mul_abs_integral_pow_div_factorial (g : ℝ → ℝ) (hg : Co
         (∫ τ in a..b, g τ * |F τ| ^ n / Nat.factorial n)
             = ∫ τ in a..b, (-1 : ℝ) ^ n * (g τ * F τ ^ n / Nat.factorial n) := by
                 apply intervalIntegral.integral_congr_uIoo
-                intro τ hτ
-                dsimp
+                intro τ hτ; simp only
                 rw [abs_of_nonpos (hFnonpos_uIoo τ hτ), neg_pow]
                 ring
         _ = (-1 : ℝ) ^ n * ∫ τ in a..b, g τ * F τ ^ n / Nat.factorial n := by
@@ -199,9 +197,7 @@ orientations), valid without `NormOneClass`. -/
 lemma norm_dysonTerm_le_abs (H : ℝ → 𝔸) (hH : Continuous H) (t₁ : ℝ) (n : ℕ) (t : ℝ) :
     ‖dysonTerm H t₁ n t‖ ≤ ‖(1 : 𝔸)‖ * |∫ u in t₁..t, ‖H u‖| ^ n / Nat.factorial n := by
   induction n generalizing t with
-  | zero =>
-      rw [dysonTerm]
-      simp
+  | zero => simp [dysonTerm]
   | succ n ih =>
       rw [dysonTerm]
       let B : ℝ → ℝ := fun τ =>
@@ -219,10 +215,7 @@ lemma norm_dysonTerm_le_abs (H : ℝ → 𝔸) (hH : Continuous H) (t₁ : ℝ) 
         _ = ‖(1 : 𝔸)‖ * |∫ τ in t₁..t, ‖H τ‖ * |∫ u in t₁..τ, ‖H u‖| ^ n / Nat.factorial n| := by
                 rw [show (fun τ => B τ) =
                     fun τ => ‖(1 : 𝔸)‖ * (‖H τ‖ * |∫ u in t₁..τ, ‖H u‖| ^ n / Nat.factorial n) by
-                  funext τ
-                  dsimp [B]
-                  ring]
-                rw [intervalIntegral.integral_const_mul, abs_mul,
+                  funext τ; dsimp [B]; ring, intervalIntegral.integral_const_mul, abs_mul,
                   abs_of_nonneg (norm_nonneg (1 : 𝔸))]
         _ = ‖(1 : 𝔸)‖ * |∫ u in t₁..t, ‖H u‖| ^ (n + 1) / Nat.factorial (n + 1) := by
                 rw [abs_integral_mul_abs_integral_pow_div_factorial (fun u => ‖H u‖) hH.norm
@@ -263,8 +256,7 @@ lemma timeOrderedExp_norm_le [NormOneClass 𝔸] (H : ℝ → 𝔸) (hH : Contin
 omit [CompleteSpace 𝔸] in
 /-- `exp_T H t₁ t₁ = 1`: the `D₀` term is `1` and all higher terms vanish because the
 interval `[t₁, t₁]` has integral `0`. -/
-lemma timeOrderedExp_initial (H : ℝ → 𝔸) (t₁ : ℝ) :
-    timeOrderedExp H t₁ t₁ = 1 := by
+lemma timeOrderedExp_initial (H : ℝ → 𝔸) (t₁ : ℝ) : timeOrderedExp H t₁ t₁ = 1 := by
   rw [timeOrderedExp, tsum_eq_single (0 : ℕ)]
   · simp [dysonTerm]
   · intro n hn
@@ -376,8 +368,7 @@ lemma timeOrderedExp_eq_integral (H : ℝ → 𝔸) (hH : Continuous H) (t₁ t�
     (summable_dysonTerm_abs H hH t₁ t₂).tsum_eq_zero_add
   rw [timeOrderedExp, hsplit]
   have hd0 : dysonTerm H t₁ 0 t₂ = 1 := by simp [dysonTerm]
-  rw [hd0]
-  congr 1
+  rw [hd0]; congr 1
   have hsum1 : (∑' n : ℕ, dysonTerm H t₁ (n + 1) t₂) =
       ∑' n : ℕ, ∫ τ in t₁..t₂, H τ * dysonTerm H t₁ n τ := by
     apply tsum_congr
@@ -500,10 +491,7 @@ lemma dysonTerm_const (H : 𝔸) (t₁ : ℝ) (n : ℕ) (t : ℝ) :
   induction n generalizing t with
   | zero => simp [dysonTerm]
   | succ n ih =>
-      change (∫ τ in t₁..t, H * dysonTerm (fun _ : ℝ => H) t₁ n τ) =
-        (Nat.factorial (n + 1) : ℝ)⁻¹ • ((t - t₁) • H) ^ (n + 1)
-      simp_rw [ih]
-      simp_rw [mul_smul_comm]
+      simp_rw [dysonTerm, ih, mul_smul_comm]
       rw [intervalIntegral.integral_smul]
       have hkey : (∫ τ in t₁..t, H * ((τ - t₁) • H) ^ n) =
           ((n + 1 : ℕ) : ℝ)⁻¹ • ((t - t₁) • H) ^ (n + 1) := by
@@ -521,9 +509,7 @@ lemma dysonTerm_const (H : 𝔸) (t₁ : ℝ) (n : ℕ) (t : ℝ) :
                   rw [integral_sub_pow t₁ t n]
           _ = ((n + 1 : ℕ) : ℝ)⁻¹ • ((t - t₁) • H) ^ (n + 1) := by
                   rw [div_eq_mul_inv, mul_comm, ← smul_smul, ← smul_pow]
-      rw [hkey, smul_smul]
-      congr 1
-      rw [Nat.factorial_succ, Nat.cast_mul, mul_inv_rev]
+      rw [hkey, smul_smul, Nat.factorial_succ, Nat.cast_mul, mul_inv_rev]
 
 /-- `prelim.tex:41` (the paper states the `0 → t` case `e^{tH}`; this is its arbitrary-interval
 form): for the constant generator, the time-ordered exponential is the ordinary matrix

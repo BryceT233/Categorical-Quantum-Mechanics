@@ -54,15 +54,9 @@ lemma contDiff_eval (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
     [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸]
     (H : Fin P.Γ → 𝔸) :
     ContDiff ℝ ∞ (fun t : ℝ => P.eval H t) := by
-  rw [show (fun t : ℝ => P.eval H t) =
-      fun t : ℝ => (P.evalIndexList.map (fun i => P.evalFactor H i t)).prod by
-    funext t
-    rw [ProductFormulaData.eval_eq_flat_prod P H t]]
   refine contDiff_list_prod P.evalIndexList (fun i t => P.evalFactor H i t) ?_
   intro i _
-  rcases i with ⟨υ, γ⟩
-  rw [ProductFormulaData.evalFactor_eq_exp_smul P H υ γ]
-  exact contDiff_exp_smul_const (P.coeff υ γ • H (P.perm υ γ))
+  simpa [ProductFormulaData.evalFactor] using contDiff_exp_smul_const (P.generator H i)
 
 /-- `t ↦ exp (t • Σ_i H_i)` is smooth. -/
 lemma contDiff_exp_sum {𝔸 : Type*} [NormedRing 𝔸]
@@ -320,7 +314,8 @@ theorem trotter_error_one_norm_scaling (P : ProductFormulaData) {𝔸 : Type*}
       exact norm_eq_zero.mp hnorm
     have hF_zero : ∀ t : ℝ, F t = 0 := by
       intro t
-      simp [F, ProductFormulaData.eval, hH_zero]
+      simp [F, ProductFormulaData.eval, ProductFormulaData.evalFactor,
+        ProductFormulaData.generator, hH_zero]
     refine IsBigO.of_bound 1 ?_
     filter_upwards with t
     rw [Real.norm_of_nonneg (norm_nonneg (F t)), hF_zero t]
@@ -385,31 +380,31 @@ lemma norm_factor_le_skew (P : ProductFormulaData) {𝔸 : Type*} [NormedRing �
     [CStarRing 𝔸] [Nontrivial 𝔸] [StarModule ℝ 𝔸]
     (H : Fin P.Γ → 𝔸) (h_skew : ∀ γ : Fin P.Γ, star (H γ) = -(H γ))
     (i : Fin P.Υ × Fin P.Γ) (q : ℕ) (u t : ℝ) :
-    ‖(P.coeff i.1 i.2 • H (P.perm i.1 i.2)) ^ q *
-        exp ((u * t * P.coeff i.1 i.2) • H (P.perm i.1 i.2))‖
+    ‖(P.generator H i) ^ q *
+        exp ((u * t * P.coeff i) • H (P.perm i.1 i.2))‖
       ≤ ‖H (P.perm i.1 i.2)‖ ^ q := by
-  have hA_skew : star (P.coeff i.1 i.2 • H (P.perm i.1 i.2)) =
-      -(P.coeff i.1 i.2 • H (P.perm i.1 i.2)) :=
+  have hA_skew : star (P.generator H i) =
+      -(P.generator H i) :=
     star_smul_of_skew (h_skew (P.perm i.1 i.2))
-  have hnorm_exp : ‖exp ((u * t) • (P.coeff i.1 i.2 • H (P.perm i.1 i.2)))‖ = 1 :=
+  have hnorm_exp : ‖exp ((u * t) • (P.generator H i))‖ = 1 :=
     norm_exp_smul_of_skewAdjoint hA_skew (u * t)
-  have hA_le : ‖P.coeff i.1 i.2 • H (P.perm i.1 i.2)‖ ≤ ‖H (P.perm i.1 i.2)‖ :=
-    ProductFormulaData.norm_smul_le_of_abs_le_one (P.coeff i.1 i.2)
-      (H (P.perm i.1 i.2)) (P.coeff_abs_le_one i.1 i.2)
-  have harg : (u * t * P.coeff i.1 i.2) • H (P.perm i.1 i.2) =
-      (u * t) • (P.coeff i.1 i.2 • H (P.perm i.1 i.2)) := by
-    rw [mul_smul]
+  have hA_le : ‖P.generator H i‖ ≤ ‖H (P.perm i.1 i.2)‖ :=
+    ProductFormulaData.norm_smul_le_of_abs_le_one (P.coeff i)
+      (H (P.perm i.1 i.2)) (P.coeff_abs_le_one i)
+  have harg : (u * t * P.coeff i) • H (P.perm i.1 i.2) =
+      (u * t) • (P.generator H i) := by
+    rw [mul_smul, ProductFormulaData.generator]
   rw [harg]
   calc
-    ‖(P.coeff i.1 i.2 • H (P.perm i.1 i.2)) ^ q *
-        exp ((u * t) • (P.coeff i.1 i.2 • H (P.perm i.1 i.2)))‖
-        ≤ ‖(P.coeff i.1 i.2 • H (P.perm i.1 i.2)) ^ q‖ *
-            ‖exp ((u * t) • (P.coeff i.1 i.2 • H (P.perm i.1 i.2)))‖ := norm_mul_le
-              ((P.coeff i.1 i.2 • H (P.perm i.1 i.2)) ^ q)
-              (exp ((u * t) • (P.coeff i.1 i.2 • H (P.perm i.1 i.2))))
-    _ ≤ ‖P.coeff i.1 i.2 • H (P.perm i.1 i.2)‖ ^ q := by
+    ‖(P.generator H i) ^ q *
+        exp ((u * t) • (P.generator H i))‖
+        ≤ ‖(P.generator H i) ^ q‖ *
+            ‖exp ((u * t) • (P.generator H i))‖ := norm_mul_le
+              ((P.generator H i) ^ q)
+              (exp ((u * t) • (P.generator H i)))
+    _ ≤ ‖P.generator H i‖ ^ q := by
             rw [hnorm_exp, mul_one]
-            exact norm_pow_le (P.coeff i.1 i.2 • H (P.perm i.1 i.2)) q
+            exact norm_pow_le (P.generator H i) q
     _ ≤ ‖H (P.perm i.1 i.2)‖ ^ q := pow_le_pow_left₀ (norm_nonneg _) hA_le q
 
 /-- The norm of the product in `𝔸` of the derivative factors is bounded by the product of the
@@ -422,8 +417,8 @@ lemma norm_derivProd_le_skew (P : ProductFormulaData) {𝔸 : Type*} [NormedRing
     ‖P.derivProd H q (u * t)‖ ≤
       ∏ i : Fin P.Υ × Fin P.Γ, ‖H (P.perm i.1 i.2)‖ ^ q i := by
   let g : Fin P.Υ × Fin P.Γ → 𝔸 := fun i =>
-    (P.coeff i.1 i.2 • H (P.perm i.1 i.2)) ^ q i *
-      exp ((u * t * P.coeff i.1 i.2) • H (P.perm i.1 i.2))
+    (P.generator H i) ^ q i *
+      exp ((u * t * P.coeff i) • H (P.perm i.1 i.2))
   have hflat : P.derivProd H q (u * t) = (P.evalIndexList.map g).prod :=
     (ProductFormulaData.evalIndexList_map_prod P g).symm
   calc
@@ -565,7 +560,8 @@ theorem trotter_error_one_norm_scaling_of_skew_adjoint (P : ProductFormulaData) 
     have hF_zero : ∀ t : ℝ, F t = 0 := by
       intro t
       dsimp [F]
-      simp [ProductFormulaData.eval, hH_zero]
+      simp [ProductFormulaData.eval, ProductFormulaData.evalFactor,
+        ProductFormulaData.generator, hH_zero]
     refine IsBigO.of_bound 1 ?_
     filter_upwards with t
     rw [Real.norm_of_nonneg (norm_nonneg (F t)), hF_zero t]
@@ -648,19 +644,17 @@ lemma norm_eval_le_one_of_skew (P : ProductFormulaData) {𝔸 : Type*} [NormedRi
     [CStarRing 𝔸] [Nontrivial 𝔸] [StarModule ℝ 𝔸]
     (H : Fin P.Γ → 𝔸) (h_skew : ∀ γ : Fin P.Γ, star (H γ) = -(H γ)) (s : ℝ) :
     ‖P.eval H s‖ ≤ 1 := by
-  rw [ProductFormulaData.eval_eq_flat_prod P H s]
   calc
-    ‖(P.evalIndexList.map (fun i => P.evalFactor H i s)).prod‖
+    ‖P.eval H s‖
         ≤ (P.evalIndexList.map (fun i => ‖P.evalFactor H i s‖)).prod := by
-            simpa [List.map_map, Function.comp_def] using
+            simpa [ProductFormulaData.eval, List.map_map, Function.comp_def] using
               List.norm_prod_le (P.evalIndexList.map (fun i => P.evalFactor H i s))
     _ = 1 := by
         have hfac : ∀ i : Fin P.Υ × Fin P.Γ, ‖P.evalFactor H i s‖ = 1 := by
           rintro ⟨υ, γ⟩
-          have hA_skew : star (P.coeff υ γ • H (P.perm υ γ)) =
-              -(P.coeff υ γ • H (P.perm υ γ)) :=
+          have hA_skew : star (P.generator H (υ, γ)) = -(P.generator H (υ, γ)) :=
             star_smul_of_skew (h_skew (P.perm υ γ))
-          rw [ProductFormulaData.evalFactor, mul_smul]
+          rw [ProductFormulaData.evalFactor]
           exact norm_exp_smul_of_skewAdjoint hA_skew s
         exact List.prod_eq_one (by
           intro x hx
