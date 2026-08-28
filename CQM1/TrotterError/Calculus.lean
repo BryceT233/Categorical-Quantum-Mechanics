@@ -82,7 +82,6 @@ lemma multinomial_image {α β : Type*} [DecidableEq β] (s : Finset α) (e : α
 lemma multinomial_fin_succ {m : ℕ} (k : ℕ) (q : Fin m → ℕ) :
     Nat.multinomial (Finset.univ : Finset (Fin (m + 1))) (Fin.cons k q) =
       (k + ∑ i : Fin m, q i).choose k * Nat.multinomial (Finset.univ : Finset (Fin m)) q := by
-  classical
   have huniv : (Finset.univ : Finset (Fin (m + 1))) =
       insert (0 : Fin (m + 1)) (Finset.univ.image (Fin.succ : Fin m → Fin (m + 1))) := by
     ext i
@@ -107,7 +106,6 @@ lemma sum_finAntidiagonal_succ {𝔸 : Type*} [AddCommMonoid 𝔸] (m n : ℕ)
     (G : (Fin (m + 1) → ℕ) → 𝔸) :
     (∑ q' ∈ Finset.finAntidiagonal (m + 1) n, G q') =
       ∑ k ∈ Finset.range (n + 1), ∑ q ∈ Finset.finAntidiagonal m (n - k), G (Fin.cons k q) := by
-  classical
   rw [Finset.sum_sigma']
   refine (Finset.sum_bij (fun x _ => Fin.cons x.1 x.2) ?_ ?_ ?_ ?_).symm
   · intro x hx
@@ -249,7 +247,6 @@ lemma sum_piAntidiag_univ_equiv {α β : Type*} [Fintype α] [Fintype β] [Decid
     [DecidableEq β] (e : α ≃ β) (n : ℕ) {𝕄 : Type*} [AddCommMonoid 𝕄] (G : (α → ℕ) → 𝕄) :
     (∑ q ∈ Finset.piAntidiag (Finset.univ : Finset α) n, G q) =
       ∑ q' ∈ Finset.piAntidiag (Finset.univ : Finset β) n, G (q' ∘ e) := by
-  classical
   refine Finset.sum_bij (fun q _ => q ∘ e.symm) ?_ ?_ ?_ ?_
   · intro q hq
     rw [Finset.mem_piAntidiag] at hq ⊢

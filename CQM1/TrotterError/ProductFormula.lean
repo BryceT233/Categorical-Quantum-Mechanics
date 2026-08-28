@@ -1,5 +1,5 @@
 /-
-Copyright (c) 2026 The Foresight Quantum. All rights reserved.
+Copyright (c) 2026 Foresight Quantum. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Foresight Quantum
 -/
@@ -120,7 +120,6 @@ theorem eval_iteratedDeriv_succ (P : ProductFormulaData) {𝔸 : Type*} [NormedR
             (((List.finRange P.Γ).reverse).map (fun γ : Fin P.Γ =>
               ((P.generator H (υ, γ)) ^ (q (υ, γ))) *
                 exp ((t * P.coeff (υ, γ)) • H (P.perm υ γ)))).prod)).prod := by
-  classical
   let l : List (Fin P.Υ × Fin P.Γ) := P.evalIndexList
   let f : Fin P.Υ × Fin P.Γ → ℝ → 𝔸 := fun i t => P.evalFactor H i t
   have hf : ∀ i ∈ l, ContDiffAt ℝ (p + 1) (f i) t := by
@@ -130,8 +129,7 @@ theorem eval_iteratedDeriv_succ (P : ProductFormulaData) {𝔸 : Type*} [NormedR
     iteratedDeriv_list_prod_general l f (p + 1) t hf]
   have hnodup : l.Nodup := (List.nodup_reverse.mpr (List.nodup_finRange P.Υ)).product
       (List.nodup_reverse.mpr (List.nodup_finRange P.Γ))
-  have hmem : ∀ x : Fin P.Υ × Fin P.Γ, x ∈ l := by
-    rintro ⟨a, b⟩; simp [l, evalIndexList]
+  have hmem : ∀ x : Fin P.Υ × Fin P.Γ, x ∈ l := by simp [l, evalIndexList]
   let e : Fin l.length ≃ Fin P.Υ × Fin P.Γ :=
     List.Nodup.getEquivOfForallMemList l hnodup hmem
   rw [sum_piAntidiag_univ_equiv e (p + 1)
@@ -157,8 +155,7 @@ theorem eval_iteratedDeriv_succ (P : ProductFormulaData) {𝔸 : Type*} [NormedR
               rw [show ((q' ∘ e) j) = q' (l.get j) by rfl]]
             simpa using (List.ofFn_getElem_eq_map l (fun i => iteratedDeriv (q' i) (f i) t))
     _ = (l.map (fun i => P.generator H i ^ (q' i) *
-          P.evalFactor H i t)).prod := by
-            rw [hfac]
+          P.evalFactor H i t)).prod := by rw [hfac]
     _ = (((List.finRange P.Υ).reverse).map (fun υ : Fin P.Υ =>
             (((List.finRange P.Γ).reverse).map (fun γ : Fin P.Γ =>
               P.generator H (υ, γ) ^ (q' (υ, γ)) *

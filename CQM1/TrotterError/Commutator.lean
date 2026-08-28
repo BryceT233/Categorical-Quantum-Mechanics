@@ -8,6 +8,8 @@ module
 public import Mathlib.Analysis.Normed.Ring.Basic
 public import Mathlib.Data.Nat.Choose.Multinomial
 
+import Mathlib.Tactic.NoncommRing
+
 /-!
 # Commutators and nested commutators
 
@@ -36,6 +38,10 @@ norm bounds.
 * `norm_adPow_le`: `‖ad_A^k(B)‖ ≤ (2 * ‖A‖)^k * ‖B‖`.
 * `norm_adSequence_le`: the product bound for an iterated `ad` over a sequence.
 * `alphaComm_nonneg`: `0 ≤ alphaComm p H`.
+* `commutator_add`, `commutator_smul`, `adPow_add`, `adPow_smul`, `adPowLin`: the
+  ℝ-linearity and algebraic properties of `commutator` and `adPow A k`.
+* `adPow_mul_central`: `adPow A k` commutes with right multiplication by elements
+  commuting with `A`.
 
 **Assisted by Deepseek Harness**
 -/
@@ -43,6 +49,8 @@ norm bounds.
 @[expose] public section
 
 namespace TrotterError
+
+open scoped algebraMap
 
 /-! ### Basic commutator objects -/
 
@@ -145,5 +153,82 @@ theorem norm_adSequence_le {𝔸 : Type*} [NormedRing 𝔸] {s : ℕ} (A : Fin s
 /-- `alphaComm p H` is a sum of norms, hence nonnegative. -/
 theorem alphaComm_nonneg {𝔸 : Type*} [NormedRing 𝔸] {Γ : ℕ} (p : ℕ) (H : Fin Γ → 𝔸) :
     0 ≤ alphaComm p H := Finset.sum_nonneg (fun _ _ => norm_nonneg _)
+
+/-! ### Linear and algebraic properties of `commutator` and `adPow` -/
+
+/-- In an ℝ-algebra, the scalar action `r • a` equals right multiplication `a * (r : 𝔸)`. -/
+lemma smul_eq_mul_right {𝔸 : Type*} [Ring 𝔸] [Algebra ℝ 𝔸] (r : ℝ) (a : 𝔸) :
+    r • a = a * (r : 𝔸) := by
+  rw [Algebra.smul_def, Algebra.commutes]
+
+/-- Appending a zero multiplicity on the outermost layer does not change `adSequence`. -/
+lemma adSequence_snoc_zero {𝔸 : Type*} [Ring 𝔸] {m : ℕ} (A : Fin (m + 1) → 𝔸)
+    (q : Fin m → ℕ) (B : 𝔸) :
+    adSequence A (Fin.snoc q 0) B = adSequence (fun i : Fin m => A i.castSucc) q B := by
+  rw [adSequence]
+  simp [adPow, Fin.snoc_last]
+
+/-- Appending a multiplicity on the outermost layer of `adSequence`: the `k`-fold commutator of
+`A ⟨m⟩` applied to the inner sequence. -/
+lemma adSequence_snoc {𝔸 : Type*} [Ring 𝔸] {m : ℕ} (A : Fin (m + 1) → 𝔸)
+    (q : Fin m → ℕ) (k : ℕ) (B : 𝔸) :
+    adSequence A (Fin.snoc q k) B =
+      adPow (A (Fin.last m)) k (adSequence (fun i : Fin m => A i.castSucc) q B) := by
+  rw [adSequence]
+  simp [Fin.snoc_last, Fin.snoc_castSucc]
+
+/-- The commutator `[A, ·]` is additive in its second argument. -/
+lemma commutator_add {𝔸 : Type*} [Ring 𝔸] (A X Y : 𝔸) :
+    commutator A (X + Y) = commutator A X + commutator A Y := by
+  unfold commutator
+  noncomm_ring
+
+/-- The commutator `[A, ·]` commutes with ℝ-scalar multiplication in its second argument. -/
+lemma commutator_smul {𝔸 : Type*} [Ring 𝔸] [Algebra ℝ 𝔸] (A : 𝔸) (r : ℝ) (X : 𝔸) :
+    commutator A (r • X) = r • commutator A X := by
+  unfold commutator
+  rw [smul_eq_mul_right r X, smul_eq_mul_right r (A * X - X * A)]
+  noncomm_ring [Algebra.commutes (r : ℝ) A]
+
+/-- The `k`-fold iterated commutator `adPow A k` is additive in its last argument. -/
+lemma adPow_add {𝔸 : Type*} [Ring 𝔸] (A : 𝔸) (k : ℕ) (X Y : 𝔸) :
+    adPow A k (X + Y) = adPow A k X + adPow A k Y := by
+  induction k with
+  | zero => simp [adPow]
+  | succ k ih =>
+      rw [adPow, adPow, adPow, ih]
+      exact commutator_add A (adPow A k X) (adPow A k Y)
+
+/-- The `k`-fold iterated commutator `adPow A k` commutes with ℝ-scalar multiplication. -/
+lemma adPow_smul {𝔸 : Type*} [Ring 𝔸] [Algebra ℝ 𝔸] (A : 𝔸) (k : ℕ) (r : ℝ) (X : 𝔸) :
+    adPow A k (r • X) = r • adPow A k X := by
+  induction k with
+  | zero => simp [adPow]
+  | succ k ih =>
+      rw [adPow, adPow, ih]
+      exact commutator_smul A r (adPow A k X)
+
+/-- `adPow A k` as an ℝ-linear endomorphism of `𝔸`. -/
+def adPowLin {𝔸 : Type*} [Ring 𝔸] [Algebra ℝ 𝔸] (A : 𝔸) (k : ℕ) : 𝔸 →ₗ[ℝ] 𝔸 where
+  toFun := fun X => adPow A k X
+  map_add' := fun X Y => adPow_add A k X Y
+  map_smul' := fun r X => adPow_smul A k r X
+
+/-- `adPow A k` commutes with right multiplication by an element `t` commuting with `A`. -/
+lemma adPow_mul_central {𝔸 : Type*} [Ring 𝔸] (A X t : 𝔸) (k : ℕ) (ht : Commute A t) :
+    adPow A k (X * t) = adPow A k X * t := by
+  induction k with
+  | zero => simp [adPow]
+  | succ k ih =>
+      calc
+        adPow A (k + 1) (X * t) = commutator A (adPow A k (X * t)) := by rw [adPow]
+        _ = commutator A (adPow A k X * t) := by rw [ih]
+        _ = (commutator A (adPow A k X)) * t := by
+              unfold commutator
+              rw [← mul_assoc A (adPow A k X) t]
+              rw [show (adPow A k X * t) * A = (adPow A k X * A) * t by
+                rw [mul_assoc, ← ht.eq, ← mul_assoc]]
+              rw [← sub_mul]
+        _ = adPow A (k + 1) X * t := by rw [adPow]
 
 end TrotterError

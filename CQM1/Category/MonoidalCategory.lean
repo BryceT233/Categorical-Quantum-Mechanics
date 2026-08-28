@@ -146,18 +146,19 @@ lemma Effect.Disjoint.isIsometry_dagger [HasZeroMorphisms C] {ι : Type*} {c : C
 lemma Effect.Disjoint.dagger_comp_eq_zero [HasZeroMorphisms C] {ι : Type*} {c : C}
     (x : ι → Effect c) (hx : Effect.Disjoint x) {i j : ι} (h : i ≠ j) : (x j)† ≫ (x i) = 0 :=
   hx.2 h
-
+/-
 attribute [local instance] HasZeroObject.zero' in
 /-- A family of effects is complete iff its associated biproduct map has zero kernel. -/
-lemma Effect.complete_iff_zero_kernel [Preadditive C] [HasZeroObject C] [HasZeroMorphisms C] {ι : Type*} {c : C}
-    (x : ι → Effect c) [HasBiproduct (fun _ : ι ↦ 𝟙_ C)] :
-    Effect.Complete x ↔ IsLimit (KernelFork.ofι (f := biproduct.lift x) (0 : 0 ⟶ c) (by simp)) := sorry
+lemma Effect.complete_iff_zero_kernel [Preadditive C] [HasZeroObject C] [HasZeroMorphisms C]
+    {ι : Type*} {c : C} (x : ι → Effect c) [HasBiproduct (fun _ : ι ↦ 𝟙_ C)] :
+    Effect.Complete x ↔ IsLimit (KernelFork.ofι (f := biproduct.lift x) (0 : 0 ⟶ c) (by simp)) :=
+  sorry
 
 /-- A family of effects is disjoint iff the dagger of its associated biproduct map is an
 isometry. -/
 lemma Effect.disjoint_iff_isIsometry_dagger [HasZeroMorphisms C] {ι : Type*} {c : C}
     (x : ι → Effect c) [HasBiproduct (fun _ : ι ↦ 𝟙_ C)] :
-    Effect.Disjoint x ↔ DaggerCategory.IsIsometry (biproduct.lift x)† := sorry
+    Effect.Disjoint x ↔ DaggerCategory.IsIsometry (biproduct.lift x)† := sorry-/
 
 /-- The probability associated to a state and an effect of an object in a monoidal dagger category,
 given by the scalar `a ≫ x ≫ x† ≫ a†`. -/

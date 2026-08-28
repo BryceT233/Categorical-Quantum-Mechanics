@@ -743,17 +743,15 @@ lemma fundamentalTheorem_timeOrderedExp_of_isUnit (U : ℝ → 𝔸) (hU : ContD
     IsUnit (U 0) ∧ ∃ H : ℝ → 𝔸, Continuous H ∧ ∀ t, U t = timeOrderedExp H 0 t * U 0 := by
   refine ⟨hunit 0, ?_⟩
   let H : ℝ → 𝔸 := fun t => deriv U t * Ring.inverse (U t)
-  have hUdiff : Differentiable ℝ U := (contDiff_one_iff_deriv.mp hU).1
-  have hUderivcont : Continuous (deriv U) := (contDiff_one_iff_deriv.mp hU).2
-  have hUcont : Continuous U := hU.continuous
   have hInvCont : Continuous (fun t => Ring.inverse (U t)) := by
     rw [continuous_iff_continuousAt]
     intro t
-    exact (differentiableAt_inverse (𝕜 := ℝ) (hunit t)).continuousAt.comp hUcont.continuousAt
-  have hH : Continuous H := hUderivcont.mul hInvCont
+    exact (differentiableAt_inverse (𝕜 := ℝ) (hunit t)).continuousAt.comp
+      hU.continuous.continuousAt
+  have hH : Continuous H := (contDiff_one_iff_deriv.mp hU).2.mul hInvCont
   have hHasDeriv : ∀ t, HasDerivAt U (H t * U t) t := by
     intro t
-    have hd : HasDerivAt U (deriv U t) t := (hUdiff t).hasDerivAt
+    have hd : HasDerivAt U (deriv U t) t := ((contDiff_one_iff_deriv.mp hU).1 t).hasDerivAt
     have hkey : (deriv U t * Ring.inverse (U t)) * U t = deriv U t := by
       rw [mul_assoc, Ring.inverse_mul_cancel (U t) (hunit t), mul_one]
     simpa [H, hkey] using hd
@@ -773,13 +771,10 @@ lemma fundamentalTheorem_timeOrderedExp_of_timeOrderedExp (U : ℝ → 𝔸) (hU
     ContDiff ℝ 1 U ∧ ∀ t, IsUnit (U t) := by
   refine ⟨?_, ?_⟩
   · have hUfun : U = fun t => timeOrderedExp H 0 t * U 0 := by
-      funext t
-      exact hEq t
-    rw [hUfun]
-    exact (contDiff_timeOrderedExp H hH 0).mul contDiff_const
+      funext t; exact hEq t
+    exact hUfun ▸ (contDiff_timeOrderedExp H hH 0).mul contDiff_const
   · intro t
-    rw [hEq t]
-    exact (isUnit_timeOrderedExp H hH 0 t).mul hU0
+    exact hEq t ▸ (isUnit_timeOrderedExp H hH 0 t).mul hU0
 
 /-- `lem:fte` (fundamental theorem of time-ordered evolution): `U` is `C¹` and pointwise a unit iff
 it is `exp_T(∫₀ᵗ H) · U 0` for some continuous `H` and `U 0` is a unit. -/
@@ -800,9 +795,7 @@ lemma fundamentalTheorem_timeOrderedExp_unique (U : ℝ → 𝔸) (hU0 : IsUnit 
     (hEq₂ : ∀ t, U t = timeOrderedExp H₂ 0 t * U 0) :
     H₁ = H₂ := by
   funext t
-  have hUt : IsUnit (U t) := by
-    rw [hEq₁ t]
-    exact (isUnit_timeOrderedExp H₁ hH₁ 0 t).mul hU0
+  have hUt : IsUnit (U t) := hEq₁ t ▸ (isUnit_timeOrderedExp H₁ hH₁ 0 t).mul hU0
   have hderiv₁ : deriv U t = (H₁ t * timeOrderedExp H₁ 0 t) * U 0 := by
     have hUfun₁ : U = fun s => timeOrderedExp H₁ 0 s * U 0 := by
       funext s; exact hEq₁ s
@@ -850,8 +843,7 @@ lemma timeOrderedExp_norm_eq_one_of_skewAdjoint
         (((starL' ℝ : 𝔸 ≃L[ℝ] 𝔸) : 𝔸 →L[ℝ] 𝔸) (H t * U t)) t :=
       (((starL' ℝ : 𝔸 ≃L[ℝ] 𝔸) : 𝔸 →L[ℝ] 𝔸).hasFDerivAt.comp_hasDerivAt t (hUderiv t))
     have hfun : (⇑(starL' ℝ : 𝔸 ≃L[ℝ] 𝔸)) ∘ U = fun s => star (U s) := by
-      funext s
-      simp
+      funext s; simp
     simpa [hfun] using hcomp
   have hWderiv : ∀ t, HasDerivAt W 0 t := by
     intro t
@@ -971,45 +963,31 @@ lemma timeOrderedExp_sub (H G : ℝ → 𝔸) (hH : Continuous H) (hG : Continuo
     have hsub := (timeOrderedExp_hasDerivAt H hH t₁ t).sub (timeOrderedExp_hasDerivAt G hG t₁ t)
     have hderiv_eq : (H t * timeOrderedExp H t₁ t) - (G t * timeOrderedExp G t₁ t)
         = G t * D t + R t := by
-      dsimp [D, R]
-      noncomm_ring
+      dsimp [D, R]; noncomm_ring
     simpa [D] using (hderiv_eq ▸ hsub)
   have hX : ∀ t, HasDerivAt X (G t * X t + R t) t := by
     intro t
     simpa [X, add_comm] using duhamelParticular_hasDerivAt G R hG hR t₁ t
-  have hD0 : D t₁ = 0 := by
-    dsimp [D]
-    rw [timeOrderedExp_initial H t₁, timeOrderedExp_initial G t₁, sub_self]
-  have hX0 : X t₁ = 0 := by
-    dsimp [X]
-    rw [intervalIntegral.integral_same]
+  have hD0 : D t₁ = 0 := by simp [D, timeOrderedExp_initial]
+  have hX0 : X t₁ = 0 := by simp [X]
   let d : ℝ → 𝔸 := fun s => D s - X s
   have hd : ∀ s, HasDerivAt d (G s * d s) s := by
     intro s
-    have hsub := (hD s).sub (hX s)
     have hderiv_eq : (G s * D s + R s) - (G s * X s + R s) = G s * (D s - X s) := by
       noncomm_ring
-    simpa [d] using (hderiv_eq ▸ hsub)
-  have hd0 : d t₁ = 0 := by
-    dsimp [d]
-    rw [hD0, hX0, sub_self]
+    exact hderiv_eq ▸ ((hD s).sub (hX s))
+  have hd0 : d t₁ = 0 := by simp [d, hD0, hX0]
   have hzero : ∀ s, HasDerivAt (fun _ : ℝ => (0 : 𝔸)) (G s * (0 : 𝔸)) s := by
-    intro s
-    simpa using (hasDerivAt_const (x := s) (c := (0 : 𝔸)))
+    intro s; simpa using hasDerivAt_const s 0
   have hd_eq_zero : d = fun _ : ℝ => (0 : 𝔸) := ode_solution_unique G hG hd hzero t₁ hd0
-  have hDt : D t₂ = X t₂ := by
-    have hds : d t₂ = 0 := congr_fun hd_eq_zero t₂
-    dsimp [d] at hds
-    exact sub_eq_zero.mp hds
+  have hDt : D t₂ = X t₂ := sub_eq_zero.mp (congr_fun hd_eq_zero t₂)
   calc
     timeOrderedExp H t₁ t₂ - timeOrderedExp G t₁ t₂
-        = ∫ τ in t₁..t₂, timeOrderedExp G τ t₂ * R τ := by
-            simpa [D, X] using hDt
+        = ∫ τ in t₁..t₂, timeOrderedExp G τ t₂ * R τ := hDt
     _ = ∫ τ in t₁..t₂, timeOrderedExp G τ t₂ * (H τ - G τ) * timeOrderedExp H t₁ τ := by
             apply intervalIntegral.integral_congr
             intro τ _
-            dsimp [R]
-            rw [← mul_assoc]
+            dsimp [R]; rw [← mul_assoc]
 
 /-! ### Distance bounds -/
 
@@ -1052,8 +1030,7 @@ lemma norm_timeOrderedExp_sub_integrand_le [NormOneClass 𝔸] (H G : ℝ → �
               (a := t₁) (b := t₂) (x := τ) hτ
           have hcomm : (∫ u in t₁..t₂, ‖G u‖ + ‖H u‖) = ∫ u in t₁..t₂, ‖H u‖ + ‖G u‖ := by
             apply intervalIntegral.integral_congr
-            intro u _
-            simp [add_comm]
+            intro u _; simp [add_comm]
           simpa [hcomm] using hle
         have hcoef : Real.exp |∫ u in τ..t₂, ‖G u‖| * Real.exp |∫ u in t₁..τ, ‖H u‖|
             ≤ Real.exp |∫ u in t₁..t₂, ‖H u‖ + ‖G u‖| := by
@@ -1090,12 +1067,9 @@ lemma timeOrderedExp_dist_le [NormOneClass 𝔸] (H G : ℝ → 𝔸) (hH : Cont
               simpa [K] using
                 (norm_timeOrderedExp_sub_integrand_le H G hH hG t₁ t₂ τ
                   (Set.uIoc_subset_uIcc hτ))
-            · have hcont : Continuous fun τ => K * ‖H τ - G τ‖ := by
-                dsimp [K]
-                fun_prop
+            · have hcont : Continuous fun τ => K * ‖H τ - G τ‖ := by fun_prop
               exact hcont.intervalIntegrable t₁ t₂
     _ = |∫ τ in t₁..t₂, ‖H τ - G τ‖| * Real.exp (|∫ τ in t₁..t₂, ‖H τ‖ + ‖G τ‖|) := by
-            dsimp [K]
             rw [intervalIntegral.integral_const_mul, abs_mul, abs_of_nonneg (Real.exp_nonneg _),
               mul_comm]
 
