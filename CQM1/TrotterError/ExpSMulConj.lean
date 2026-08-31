@@ -7,8 +7,7 @@ module
 
 public import CQM1.TrotterError.Commutator
 public import CQM1.TrotterError.Calculus
-
-import Mathlib.Analysis.SpecialFunctions.Integrals.Basic
+public import CQM1.TrotterError.Integrals
 
 /-!
 # Single-layer conjugation
@@ -23,9 +22,9 @@ expansion and norm bounds of the single conjugation `exp (τ • A) * X * exp (-
 
 ## Main results
 
-* `expSMulConj_hasDerivAt`: `d/dτ expSMulConj A X τ = expSMulConj A (commutator A X) τ`.
+* `expSMulConj_hasDerivAt`: `d/dτ expSMulConj A X τ = expSMulConj A ⁅A, X⁆ τ`.
 * `expSMulConj_sub_eq_integral`: the fundamental-theorem identity
-  `expSMulConj A X τ - X = ∫₀^τ expSMulConj A (commutator A X) s ds`.
+  `expSMulConj A X τ - X = ∫₀^τ expSMulConj A ⁅A, X⁆ s ds`.
 * `iteratedDeriv_expSMulConj_zero`: `iteratedDeriv j (expSMulConj A X) 0 = adPow A j X`.
 * `expSMulConj_taylor`: the single-layer Taylor expansion with integral remainder.
 * `norm_expSMulConj_le`, `norm_expSMulConj_remainder_le`: norm bounds for the conjugation
@@ -52,22 +51,13 @@ lemma exp_smul_comm {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
     (A : 𝔸) (t : ℝ) : Commute A (exp (t • A)) :=
   ((Commute.refl A).smul_right t).exp_right
 
-/-- `t ↦ exp (t • A)` is smooth. -/
-lemma contDiff_exp_smul {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
-    [CompleteSpace 𝔸] (A : 𝔸) :
-    ContDiff ℝ ∞ (fun t : ℝ => exp (t • A)) := by
-  rw [contDiff_iff_contDiffAt]
-  intro t
-  exact ((NormedSpace.exp_analytic (t • A)).contDiffAt).comp t
-    (ContDiffAt.smul (f := fun u : ℝ => u) (g := fun _ : ℝ => A) contDiffAt_id contDiffAt_const)
-
 /-- The conjugation `t ↦ expSMulConj A Y t` is smooth. -/
 lemma contDiff_expSMulConj {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
     [CompleteSpace 𝔸] (A Y : 𝔸) :
     ContDiff ℝ ∞ (fun t : ℝ => expSMulConj A Y t) := by
   unfold expSMulConj
-  exact ((contDiff_exp_smul A).mul contDiff_const).mul
-    ((contDiff_exp_smul A).comp contDiff_neg)
+  exact ((contDiff_exp_smul_const A).mul contDiff_const).mul
+    ((contDiff_exp_smul_const A).comp contDiff_neg)
 
 /-- The conjugation `t ↦ expSMulConj A Y t` is continuous. -/
 lemma continuous_expSMulConj {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
@@ -75,19 +65,12 @@ lemma continuous_expSMulConj {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ
     Continuous (fun t : ℝ => expSMulConj A Y t) :=
   (contDiff_expSMulConj A Y).continuous
 
-/-- The Taylor coefficient `(j! : ℝ)⁻¹ * τ^j` acting by `•` equals the paper's form
-`(j! : ℝ)⁻¹ • x * (τ : 𝔸)^j`. -/
-lemma pow_smul_eq_smul_mul {𝔸 : Type*} [Ring 𝔸] [Algebra ℝ 𝔸] (j : ℕ) (x : 𝔸) (τ : ℝ) :
-    ((Nat.factorial j : ℝ)⁻¹ * τ ^ j) • x = (Nat.factorial j : ℝ)⁻¹ • x * (τ : 𝔸) ^ j := by
-  rw [mul_smul, smul_eq_mul_right (τ ^ j) x]
-  simp
-
 /-- Derivative of the conjugation:
-`d/dτ expSMulConj A X τ = expSMulConj A (commutator A X) τ`
+`d/dτ expSMulConj A X τ = expSMulConj A ⁅A, X⁆ τ`
 (i.e. `e^{τA} [A, X] e^{-τA}`). -/
 theorem expSMulConj_hasDerivAt {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
     [CompleteSpace 𝔸] (A X : 𝔸) (τ : ℝ) :
-    HasDerivAt (fun s => expSMulConj A X s) (expSMulConj A (commutator A X) τ) τ := by
+    HasDerivAt (fun s => expSMulConj A X s) (expSMulConj A ⁅A, X⁆ τ) τ := by
   have hneg : HasDerivAt (fun s : ℝ => exp ((-s) • A)) (-A * exp ((-τ) • A)) τ := by
     have h := hasDerivAt_exp_smul_const' (-A) τ
     convert h using 2 <;> simp
@@ -99,20 +82,20 @@ theorem expSMulConj_hasDerivAt {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra �
       (hasDerivAt_exp_smul_const' A τ).mul_const X |>.mul hneg
     convert h' using 1
     noncomm_ring [(exp_smul_comm A τ).eq, (exp_smul_comm A (-τ)).eq]
-  simpa [expSMulConj, commutator] using hmain
+  simpa [expSMulConj, Ring.lie_def] using hmain
 
 /-- Fundamental theorem of calculus for the conjugation:
-`expSMulConj A X τ - X = ∫ s in 0..τ, expSMulConj A (commutator A X) s`. -/
+`expSMulConj A X τ - X = ∫ s in 0..τ, expSMulConj A ⁅A, X⁆ s`. -/
 theorem expSMulConj_sub_eq_integral {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
     [CompleteSpace 𝔸] (A X : 𝔸) (τ : ℝ) :
-    expSMulConj A X τ - X = ∫ s in 0..τ, expSMulConj A (commutator A X) s := by
+    expSMulConj A X τ - X = ∫ s in 0..τ, expSMulConj A ⁅A, X⁆ s := by
   have hderiv : ∀ x ∈ Set.uIcc (0 : ℝ) τ,
-      HasDerivAt (fun s => expSMulConj A X s) (expSMulConj A (commutator A X) x) x :=
+      HasDerivAt (fun s => expSMulConj A X s) (expSMulConj A ⁅A, X⁆ x) x :=
     fun x _ => expSMulConj_hasDerivAt A X x
-  have hint : IntervalIntegrable (fun s => expSMulConj A (commutator A X) s) volume 0 τ :=
-    (continuous_expSMulConj A (commutator A X)).intervalIntegrable 0 τ
+  have hint : IntervalIntegrable (fun s => expSMulConj A ⁅A, X⁆ s) volume 0 τ :=
+    (continuous_expSMulConj A ⁅A, X⁆).intervalIntegrable 0 τ
   have h := intervalIntegral.integral_eq_sub_of_hasDerivAt
-    (f := fun s => expSMulConj A X s) (f' := fun s => expSMulConj A (commutator A X) s)
+    (f := fun s => expSMulConj A X s) (f' := fun s => expSMulConj A ⁅A, X⁆ s)
     (a := 0) (b := τ) hderiv hint
   rw [h]; simp [expSMulConj]
 
@@ -122,34 +105,18 @@ lemma iteratedDeriv_expSMulConj {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra 
     [CompleteSpace 𝔸] (A X : 𝔸) (j : ℕ) :
     iteratedDeriv j (fun τ => expSMulConj A X τ) = fun τ => expSMulConj A (adPow A j X) τ := by
   induction j with
-  | zero => simp [iteratedDeriv_zero, adPow]
+  | zero => simp [iteratedDeriv_zero]
   | succ j ih =>
       rw [iteratedDeriv_succ, ih]
       funext t
       rw [(expSMulConj_hasDerivAt A (adPow A j X) t).deriv]
-      rfl
+      rw [adPow_succ]
 
 /-- The `j`-th iterated derivative of `τ ↦ expSMulConj A X τ` at `0` is `adPow A j X`. -/
 theorem iteratedDeriv_expSMulConj_zero {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
     [CompleteSpace 𝔸] (A X : 𝔸) (j : ℕ) :
     iteratedDeriv j (fun τ => expSMulConj A X τ) 0 = adPow A j X := by
   rw [iteratedDeriv_expSMulConj]; simp [expSMulConj]
-
-/-- The standard Taylor remainder integral equals the paper's substituted form:
-`∫₀^τ (τ-s)^n/n! • F s = ∫₀^τ F (τ-s) * (s^n/n!)`. -/
-lemma integral_smul_eq_integral_mul_sub {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
-    (F : ℝ → 𝔸) (n : ℕ) (τ : ℝ) :
-    (∫ s in 0..τ, ((τ - s) ^ n / (Nat.factorial n : ℝ)) • F s) =
-      ∫ s in 0..τ, F (τ - s) * ((s ^ n / (Nat.factorial n : ℝ)) : 𝔸) := by
-  calc
-    (∫ s in 0..τ, ((τ - s) ^ n / (Nat.factorial n : ℝ)) • F s)
-        = ∫ s in 0..τ, F s * (((τ - s) ^ n / (Nat.factorial n : ℝ)) : 𝔸) := by
-            apply intervalIntegral.integral_congr_uIoo
-            intro s hs
-            exact smul_eq_mul_right (((τ - s) ^ n / (Nat.factorial n : ℝ))) (F s)
-    _ = ∫ s in 0..τ, F (τ - s) * ((s ^ n / (Nat.factorial n : ℝ)) : 𝔸) := by
-            simpa using (intervalIntegral.integral_comp_sub_left (a := 0) (b := τ) (d := τ)
-              (f := fun u => F (τ - u) * ((u ^ n / (Nat.factorial n : ℝ)) : 𝔸)))
 
 /-- At `τ = 0`, the Taylor polynomial `∑_{j<p} (j! : ℝ)⁻¹ • (adPow A j X * 0^j)` equals `X`. -/
 lemma taylor_poly_zero {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
@@ -159,38 +126,6 @@ lemma taylor_poly_zero {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
     (a := 0) (f := fun j => (Nat.factorial j : ℝ)⁻¹ • (adPow A j X * (0 : 𝔸) ^ j))
     (Finset.mem_range.mpr (lt_of_lt_of_le zero_lt_one hp))
     (by intro b _ hb0; rw [zero_pow hb0, mul_zero, smul_zero]))
-
-/-- `∫₀^τ |s|^(p-1)/(p-1)! ds = |τ|^p/p!` over the unordered interval, for `1 ≤ p`. -/
-lemma integral_abs_pow_sub_div_factorial_uIoc (p : ℕ) (τ : ℝ) (hp : 1 ≤ p) :
-    (∫ s in Set.uIoc (0 : ℝ) τ, |s| ^ (p - 1) / (Nat.factorial (p - 1) : ℝ)) =
-      |τ| ^ p / (Nat.factorial p : ℝ) := by
-  have hfac : Nat.factorial p = p * Nat.factorial (p - 1) := by
-    simpa [Nat.sub_add_cancel hp] using Nat.factorial_succ (p - 1)
-  calc
-    (∫ s in Set.uIoc (0 : ℝ) τ, |s| ^ (p - 1) / (Nat.factorial (p - 1) : ℝ))
-        = (∫ s in Set.uIoc (0 : ℝ) τ, |s| ^ (p - 1)) / (Nat.factorial (p - 1) : ℝ) := by
-            rw [integral_div]
-    _ = (|τ| ^ p / (p : ℝ)) / (Nat.factorial (p - 1) : ℝ) := by
-            have hp' : ((p - 1 : ℕ) : ℝ) + 1 = (p : ℝ) := by
-              rw [Nat.cast_sub hp]
-              ring
-            have hpow : (∫ s in Set.uIoc (0 : ℝ) τ, |s| ^ (p - 1)) = |τ| ^ p / (p : ℝ) := by
-              have h := integral_pow_abs_sub_uIoc (a := 0) (b := τ) (n := p - 1)
-              rw [Nat.sub_add_cancel hp, hp'] at h
-              simpa using h
-            rw [hpow]
-    _ = |τ| ^ p / (Nat.factorial p : ℝ) := by
-            rw [hfac, Nat.cast_mul]
-            field_simp
-
-/-- `|∫₀^τ |s|^(p-1)/(p-1)! ds| = |τ|^p/p!` for `1 ≤ p`. -/
-lemma abs_integral_abs_pow_div_factorial (p : ℕ) (τ : ℝ) (hp : 1 ≤ p) :
-    |∫ s in 0..τ, |s| ^ (p - 1) / (Nat.factorial (p - 1) : ℝ)|
-      = |τ| ^ p / (Nat.factorial p : ℝ) := by
-  rw [intervalIntegral.abs_integral_eq_abs_integral_uIoc]
-  have hnonneg : 0 ≤ (∫ s in Set.uIoc (0 : ℝ) τ, |s| ^ (p - 1) / (Nat.factorial (p - 1) : ℝ)) :=
-    setIntegral_nonneg measurableSet_uIoc (fun s _ => by positivity)
-  rw [abs_of_nonneg hnonneg, integral_abs_pow_sub_div_factorial_uIoc p τ hp]
 
 /-- Single-layer Taylor expansion (theory.tex:137-150):
 `expSMulConj A X τ = Σ_{j<p} adPow A j X τ^j/j! +

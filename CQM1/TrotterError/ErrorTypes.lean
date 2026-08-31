@@ -94,12 +94,6 @@ lemma evalIndexList_mem (P : ProductFormulaData) (i : Fin P.Υ × Fin P.Γ) : i 
 
 /-! ### Continuity of the building blocks -/
 
-/-- `t ↦ exp (t • A)` is continuous (over `ℝ`). -/
-lemma continuous_exp_smul_const (A : 𝔸) : Continuous (fun t : ℝ => exp (t • A)) := by
-  rw [continuous_iff_continuousAt]
-  intro t
-  exact (contDiffAt_exp_smul_const A 1 t).continuousAt
-
 /-- Each factor `t ↦ P.evalFactor H i t` is continuous. -/
 @[fun_prop]
 lemma continuous_evalFactor (P : ProductFormulaData) (H : Fin P.Γ → 𝔸)
@@ -126,16 +120,6 @@ lemma continuous_eval (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) :
 /-! ### Elementary `exp` identities (need `ℚ`-algebra) -/
 
 omit [NormedAlgebra ℝ 𝔸] in
-/-- `exp (-x) * exp x = 1`. -/
-lemma exp_neg_mul_self [NormedAlgebra ℚ 𝔸] (x : 𝔸) : exp (-x) * exp x = 1 := by
-  simpa using (exp_add_of_commute (Commute.refl x).neg_left).symm
-
-omit [NormedAlgebra ℝ 𝔸] in
-/-- `exp x * exp (-x) = 1`. -/
-lemma exp_mul_neg_self [NormedAlgebra ℚ 𝔸] (x : 𝔸) : exp x * exp (-x) = 1 := by
-  simpa using (exp_add_of_commute (Commute.refl x).neg_right).symm
-
-omit [NormedAlgebra ℝ 𝔸] in
 /-- `∏_{j} e^{A_j} · ∏_{j}^{←} e^{-A_j} = 1` (a telescoping product of unit factors). -/
 lemma List.prod_exp_mul_rev_neg [NormedAlgebra ℚ 𝔸] {ι : Type*} (l : List ι) (A : ι → 𝔸) :
     (l.map (fun i => exp (A i))).prod * ((l.reverse).map (fun i => exp (-A i))).prod = 1 :=
@@ -148,11 +132,6 @@ lemma List.prod_map_neg_exp_mul_prod [NormedAlgebra ℚ 𝔸] {ι : Type*} (l : 
     (l.reverse.map (fun i => exp (-A i))).prod * (l.map (fun i => exp (A i))).prod = 1 :=
   rev_mul_prod_eq_one_of_mul_eq_one l (fun i => exp (A i)) (fun i => exp (-A i))
     (fun i => exp_neg_mul_self (A i))
-
-omit [CompleteSpace 𝔸] in
-/-- `(s • A)` commutes with `A`. -/
-lemma commute_smul_self (A : 𝔸) (s : ℝ) : Commute (s • A) A := by
-  rw [commute_iff_eq, smul_mul_assoc, mul_smul_comm]
 
 omit [CompleteSpace 𝔸] in
 /-- `exp (s • A)` commutes with `A`. -/

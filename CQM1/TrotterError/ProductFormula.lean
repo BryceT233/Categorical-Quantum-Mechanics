@@ -18,7 +18,7 @@ Following the paper's convention (`papers/prelim.tex` §2.1), the product
 `∏_{γ=1}^{Γ} A_γ` denotes `A_Γ ⋯ A_2 A_1`, i.e. increasing indices from right to
 left; we implement this with a reversed `List.finRange`. Since the factors
 `e^{t a H}` do not commute, the product is taken with `List.prod` (ordered) rather
-than `Finset.prod` (commutative) or `Finset.noncommProd` (which requires pairwise
+than `prod` (commutative) or `noncommProd` (which requires pairwise
 commutativity).
 
 ## Main results
@@ -34,7 +34,7 @@ commutativity).
 
 namespace TrotterError
 
-open NormedSpace
+open NormedSpace Finset
 open scoped Topology
 
 /-- The data of a general product formula `𝒮(t) = ∏_{υ=1}^{Υ} ∏_{γ=1}^{Γ}
@@ -105,8 +105,7 @@ lemma evalFactor_iteratedDeriv (P : ProductFormulaData) {𝔸 : Type*} [NormedRi
     [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] (H : Fin P.Γ → 𝔸) (i : Fin P.Υ × Fin P.Γ)
     (k : ℕ) (t : ℝ) : iteratedDeriv k (fun t : ℝ => P.evalFactor H i t) t =
       P.generator H i ^ k * P.evalFactor H i t := by
-  change iteratedDeriv k (fun t : ℝ => exp (t • P.generator H i)) t =
-    P.generator H i ^ k * exp (t • P.generator H i)
+  dsimp [evalFactor]
   rw [iteratedDeriv_exp_smul_const (P.generator H i) k]
 
 /-- The `(p + 1)`-st iterated derivative of `eval`, expanded as a multinomial Leibniz sum over
@@ -114,8 +113,8 @@ multi-indices on `Fin P.Υ × Fin P.Γ` (the paper's `𝒮^{(p+1)}(ut)` expansio
 theorem eval_iteratedDeriv_succ (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
     [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] (H : Fin P.Γ → 𝔸) (p : ℕ) (t : ℝ) :
     iteratedDeriv (p + 1) (fun t : ℝ => P.eval H t) t =
-      ∑ q ∈ Finset.piAntidiag (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) (p + 1),
-        (Nat.multinomial (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) q : ℝ) •
+      ∑ q ∈ piAntidiag (univ : Finset (Fin P.Υ × Fin P.Γ)) (p + 1),
+        (Nat.multinomial (univ : Finset (Fin P.Υ × Fin P.Γ)) q : ℝ) •
           (((List.finRange P.Υ).reverse).map (fun υ : Fin P.Υ =>
             (((List.finRange P.Γ).reverse).map (fun γ : Fin P.Γ =>
               ((P.generator H (υ, γ)) ^ (q (υ, γ))) *
@@ -134,10 +133,10 @@ theorem eval_iteratedDeriv_succ (P : ProductFormulaData) {𝔸 : Type*} [NormedR
     List.Nodup.getEquivOfForallMemList l hnodup hmem
   rw [sum_piAntidiag_univ_equiv e (p + 1)
     (fun q : Fin l.length → ℕ =>
-      (Nat.multinomial (Finset.univ : Finset (Fin l.length)) q : ℝ) •
+      (Nat.multinomial (univ : Finset (Fin l.length)) q : ℝ) •
         (List.ofFn (fun j : Fin l.length =>
           iteratedDeriv (q j) (f (l.get j)) t)).prod)]
-  apply Finset.sum_congr rfl
+  apply sum_congr rfl
   intro q' hq'
   rw [← multinomial_univ_equiv e q']
   congr 1
@@ -169,32 +168,6 @@ theorem eval_iteratedDeriv_succ (P : ProductFormulaData) {𝔸 : Type*} [NormedR
             simp [evalFactor, generator, mul_smul]
 
 /-! ### Norm bounds for the derivative expansion (prelim.tex:182–188) -/
-
-/-- `|c| ≤ 1` implies `‖c • A‖ ≤ ‖A‖` in any normed algebra. -/
-lemma norm_smul_le_of_abs_le_one {𝔸 : Type*} [NormedRing 𝔸] [NormedSpace ℝ 𝔸]
-    (c : ℝ) (A : 𝔸) (hc : |c| ≤ 1) : ‖c • A‖ ≤ ‖A‖ := by
-  calc
-    ‖c • A‖ = |c| * ‖A‖ := by rw [norm_smul, Real.norm_eq_abs]
-    _ ≤ 1 * ‖A‖ := mul_le_mul_of_nonneg_right hc (norm_nonneg _)
-    _ = ‖A‖ := one_mul _
-
-/-- For `u ≤ 1`, `0 ≤ t`, and `|c| ≤ 1`, the exponential argument `(u * t) * ‖c • A‖` is at
-most `t * ‖A‖`. -/
-lemma norm_smul_exp_arg_le {𝔸 : Type*} [NormedRing 𝔸] [NormedSpace ℝ 𝔸]
-    (c : ℝ) (A : 𝔸) (hc : |c| ≤ 1) (u t : ℝ) (ht : 0 ≤ t) (hu1 : u ≤ 1) :
-    (u * t) * ‖c • A‖ ≤ t * ‖A‖ := by
-  have hc' : u * |c| ≤ 1 := by
-    simpa using mul_le_mul hu1 hc (abs_nonneg _) zero_le_one
-  have hle : u * t * |c| ≤ t := by
-    calc
-      u * t * |c| = t * (u * |c|) := by ring
-      _ ≤ t * 1 := mul_le_mul_of_nonneg_left hc' ht
-      _ = t := mul_one _
-  calc
-    (u * t) * ‖c • A‖ = u * t * |c| * ‖A‖ := by
-      rw [norm_smul, Real.norm_eq_abs]
-      ring
-    _ ≤ t * ‖A‖ := mul_le_mul_of_nonneg_right hle (norm_nonneg _)
 
 /-- Per-factor norm bound: `‖(a • H)^q * exp (u t a • H)‖ ≤ ‖H‖^q * Real.exp (t * ‖H‖)`
 (prelim.tex:183–184). -/
@@ -230,15 +203,15 @@ noncomputable def derivProd (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 
       ((P.generator H (υ, γ)) ^ (q (υ, γ))) *
         exp ((t * P.coeff (υ, γ)) • H (P.perm υ γ)))).prod)).prod
 
-/-- The product over the nested `List.finRange` lists equals the `Finset.prod` over the product
-index type (ℝ is commutative, so the order does not matter). -/
-lemma nested_prod_eq_finset_prod {Υ Γ : ℕ} (f : Fin Υ × Fin Γ → ℝ) :
+/-- The product over the nested `List.finRange` lists equals the `prod` over the product
+index type (the reverse order is irrelevant in a commutative monoid). -/
+lemma nested_prod_eq_finset_prod {M : Type*} [CommMonoid M] {Υ Γ : ℕ} (f : Fin Υ × Fin Γ → M) :
     (((List.finRange Υ).reverse).map (fun υ : Fin Υ =>
       (((List.finRange Γ).reverse).map (fun γ : Fin Γ => f (υ, γ))).prod)).prod =
         ∏ i : Fin Υ × Fin Γ, f i := by
   simp only [List.map_reverse, List.prod_reverse]
   simp_rw [← Fin.prod_univ_def]
-  rw [← Finset.univ_product_univ, Finset.prod_product]
+  rw [← univ_product_univ, prod_product]
 
 /-- The norm of the product over the `(υ, γ)`-factors is bounded by the product of the per-factor
 bounds `‖H_π‖^q * Real.exp (t * ‖H_π‖)`. -/
@@ -262,7 +235,7 @@ lemma norm_derivProd_le (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸
         rw [evalIndexList_map_prod P (fun i => ‖g i‖), nested_prod_eq_finset_prod (fun i => ‖g i‖)]
     _ ≤ ∏ i : Fin P.Υ × Fin P.Γ,
           ‖H (P.perm i.1 i.2)‖ ^ q i * Real.exp (t * ‖H (P.perm i.1 i.2)‖) :=
-        Finset.prod_le_prod (fun i _ => norm_nonneg _)
+        prod_le_prod (fun i _ => norm_nonneg _)
           (fun i _ => norm_factor_le P H i (q i) u t ht hu0 hu1)
 
 /-- `∑_γ ‖H_{π_υ(γ)}‖` is invariant under the stage permutation `π_υ`. -/
@@ -278,13 +251,13 @@ lemma sum_norm_prod (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
   calc
     (∑ i : Fin P.Υ × Fin P.Γ, ‖H (P.perm i.1 i.2)‖)
         = ∑ υ : Fin P.Υ, ∑ γ : Fin P.Γ, ‖H (P.perm υ γ)‖ := by
-            rw [← Finset.univ_product_univ, Finset.sum_product]
+            rw [← univ_product_univ, sum_product]
     _ = ∑ υ : Fin P.Υ, ∑ γ : Fin P.Γ, ‖H γ‖ := by
-            apply Finset.sum_congr rfl
+            apply sum_congr rfl
             intro υ hυ
             exact sum_norm_perm P H υ
     _ = (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖ := by
-            rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+            rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
 
 /-- The `(p + 1)`-st iterated derivative norm bound (prelim.tex:182–185):
 `‖𝒮^{(p+1)}(ut)‖ ≤ (Υ · Σ_γ ‖H_γ‖)^{p+1} · Real.exp (t · Υ · Σ_γ ‖H_γ‖)`. -/
@@ -298,51 +271,51 @@ theorem eval_iteratedDeriv_norm_le (P : ProductFormulaData) {𝔸 : Type*} [Norm
   let B : Fin P.Υ × Fin P.Γ → ℝ := fun i => ‖H (P.perm i.1 i.2)‖
   have hB : (∑ i : Fin P.Υ × Fin P.Γ, B i) = (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖ := sum_norm_prod P H
   have hE : (∑ i : Fin P.Υ × Fin P.Γ, t * B i) = t * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖ := by
-    rw [← Finset.mul_sum, hB]; ring
+    rw [← mul_sum, hB]; ring
   rw [eval_iteratedDeriv_succ]
   calc
-    ‖∑ q ∈ Finset.piAntidiag (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) (p + 1),
-        (Nat.multinomial (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) q : ℝ) •
+    ‖∑ q ∈ piAntidiag (univ : Finset (Fin P.Υ × Fin P.Γ)) (p + 1),
+        (Nat.multinomial (univ : Finset (Fin P.Υ × Fin P.Γ)) q : ℝ) •
           P.derivProd H q (u * t)‖
-        ≤ ∑ q ∈ Finset.piAntidiag (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) (p + 1),
-            ‖(Nat.multinomial (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) q : ℝ) •
+        ≤ ∑ q ∈ piAntidiag (univ : Finset (Fin P.Υ × Fin P.Γ)) (p + 1),
+            ‖(Nat.multinomial (univ : Finset (Fin P.Υ × Fin P.Γ)) q : ℝ) •
               P.derivProd H q (u * t)‖ := norm_sum_le _ _
-    _ = ∑ q ∈ Finset.piAntidiag (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) (p + 1),
-            (Nat.multinomial (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) q : ℝ) *
+    _ = ∑ q ∈ piAntidiag (univ : Finset (Fin P.Υ × Fin P.Γ)) (p + 1),
+            (Nat.multinomial (univ : Finset (Fin P.Υ × Fin P.Γ)) q : ℝ) *
               ‖P.derivProd H q (u * t)‖ := by
-            apply Finset.sum_congr rfl
+            apply sum_congr rfl
             intro q hq
             rw [norm_smul, Real.norm_of_nonneg (Nat.cast_nonneg _)]
-    _ ≤ ∑ q ∈ Finset.piAntidiag (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) (p + 1),
-            (Nat.multinomial (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) q : ℝ) *
+    _ ≤ ∑ q ∈ piAntidiag (univ : Finset (Fin P.Υ × Fin P.Γ)) (p + 1),
+            (Nat.multinomial (univ : Finset (Fin P.Υ × Fin P.Γ)) q : ℝ) *
               (∏ i : Fin P.Υ × Fin P.Γ, B i ^ q i * Real.exp (t * B i)) := by
-            apply Finset.sum_le_sum
+            apply sum_le_sum
             intro q hq
             exact mul_le_mul_of_nonneg_left (norm_derivProd_le P H q u t ht hu0 hu1)
               (Nat.cast_nonneg _)
     _ = ((P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) ^ (p + 1) *
           Real.exp (t * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) := by
         calc
-          (∑ q ∈ Finset.piAntidiag (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) (p + 1),
-              (Nat.multinomial (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) q : ℝ) *
+          (∑ q ∈ piAntidiag (univ : Finset (Fin P.Υ × Fin P.Γ)) (p + 1),
+              (Nat.multinomial (univ : Finset (Fin P.Υ × Fin P.Γ)) q : ℝ) *
                 (∏ i : Fin P.Υ × Fin P.Γ, B i ^ q i * Real.exp (t * B i)))
-              = (∑ q ∈ Finset.piAntidiag (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) (p + 1),
-                  (Nat.multinomial (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) q : ℝ) *
+              = (∑ q ∈ piAntidiag (univ : Finset (Fin P.Υ × Fin P.Γ)) (p + 1),
+                  (Nat.multinomial (univ : Finset (Fin P.Υ × Fin P.Γ)) q : ℝ) *
                     (∏ i : Fin P.Υ × Fin P.Γ, B i ^ q i) *
                       Real.exp (t * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖)) := by
-                  apply Finset.sum_congr rfl
+                  apply sum_congr rfl
                   intro q hq
-                  rw [Finset.prod_mul_distrib, (Real.exp_sum Finset.univ (fun i => t * B i)).symm,
+                  rw [prod_mul_distrib, (Real.exp_sum univ (fun i => t * B i)).symm,
                     hE]
                   ring
-          _ = (∑ q ∈ Finset.piAntidiag (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) (p + 1),
-                  (Nat.multinomial (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) q : ℝ) *
+          _ = (∑ q ∈ piAntidiag (univ : Finset (Fin P.Υ × Fin P.Γ)) (p + 1),
+                  (Nat.multinomial (univ : Finset (Fin P.Υ × Fin P.Γ)) q : ℝ) *
                     (∏ i : Fin P.Υ × Fin P.Γ, B i ^ q i)) *
-                Real.exp (t * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) := by rw [← Finset.sum_mul]
+                Real.exp (t * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) := by rw [← sum_mul]
           _ = (∑ i : Fin P.Υ × Fin P.Γ, B i) ^ (p + 1) *
                 Real.exp (t * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) := by
-                  rw [← Finset.sum_pow_eq_sum_piAntidiag
-                    (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) B (p + 1)]
+                  rw [← sum_pow_eq_sum_piAntidiag
+                    (univ : Finset (Fin P.Υ × Fin P.Γ)) B (p + 1)]
           _ = ((P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) ^ (p + 1) *
                 Real.exp (t * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) := by rw [hB]
 

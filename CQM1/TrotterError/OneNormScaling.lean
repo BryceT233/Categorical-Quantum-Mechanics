@@ -5,7 +5,7 @@ Authors: Foresight Quantum
 -/
 module
 
-public import Mathlib.Analysis.SpecialFunctions.Integrals.Basic
+public import CQM1.TrotterError.Integrals
 public import CQM1.TrotterError.ProductFormula
 
 /-!
@@ -28,15 +28,6 @@ open Asymptotics
 open scoped Topology BigOperators ContDiff
 
 /-! ### Smoothness of the product formula and the exponential -/
-
-/-- `t ↦ exp (t • A)` is smooth. -/
-lemma contDiff_exp_smul_const {𝔸 : Type*} [NormedRing 𝔸]
-    [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] (A : 𝔸) :
-    ContDiff ℝ ∞ (fun t : ℝ => exp (t • A)) := by
-  rw [contDiff_iff_contDiffAt]
-  intro t
-  exact ((NormedSpace.exp_analytic (t • A)).contDiffAt).comp t
-    (ContDiffAt.smul (f := fun u : ℝ => u) (g := fun _ : ℝ => A) contDiffAt_id contDiffAt_const)
 
 /-- The pointwise product of a finite list of smooth functions is smooth. -/
 lemma contDiff_list_prod {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
@@ -65,20 +56,6 @@ lemma contDiff_exp_sum {𝔸 : Type*} [NormedRing 𝔸]
   contDiff_exp_smul_const (∑ i : ι, H i)
 
 /-! ### Norm bounds for the derivatives -/
-
-/-- `∫₀¹ (1-u)^p du = 1/(p+1)`. -/
-lemma intervalIntegral_one_sub_pow (p : ℕ) :
-    (∫ u in (0 : ℝ)..(1 : ℝ), (1 - u) ^ p) = (1 : ℝ) / ((p + 1 : ℕ) : ℝ) := by
-  calc
-    (∫ u in (0 : ℝ)..(1 : ℝ), (1 - u) ^ p)
-        = ∫ u in (0 : ℝ)..(1 : ℝ), u ^ p := by
-            simpa using (intervalIntegral.integral_comp_sub_left (f := fun x : ℝ => x ^ p)
-              (a := 0) (b := 1) (d := 1))
-    _ = (1 : ℝ) / ((p + 1 : ℕ) : ℝ) := by
-        have hp : (p + 1 : ℕ) ≠ 0 := Nat.succ_ne_zero p
-        rw [integral_pow, one_pow, zero_pow hp,
-          show ((p + 1 : ℕ) : ℝ) = (p : ℝ) + 1 by norm_num]
-        ring
 
 /-- Norm bound for the `(p+1)`-st derivative of `s ↦ exp (s • Σ_i H_i)`, valid for all `s`. -/
 lemma norm_iteratedDeriv_exp_sum_le {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸]
@@ -359,21 +336,6 @@ theorem trotter_error_one_norm_scaling (P : ProductFormulaData) {𝔸 : Type*}
       simpa using (nhdsWithinLE_sup_nhdsWithinGE (a := (0 : ℝ)) (s := Set.univ))
     simpa [hsup_eq, F, g, S, Real.exp_eq_exp_ℝ] using hO_sup
 
-/-- `star (c • A) = -(c • A)` whenever `star A = -A` and `c` is real. -/
-lemma star_smul_of_skew {𝔸 : Type*} [Star 𝔸] [AddGroup 𝔸] [DistribSMul ℝ 𝔸] [StarModule ℝ 𝔸]
-    {A : 𝔸} {c : ℝ} (hA : star A = -A) :
-    star (c • A) = -(c • A) := by
-  rw [StarModule.star_smul, hA, star_trivial, smul_neg]
-
-/-- A sum of anti-Hermitian elements is anti-Hermitian. -/
-lemma sum_skewAdjoint {𝔸 : Type*} [AddCommGroup 𝔸] [StarAddMonoid 𝔸] {ι : Type*} [Fintype ι]
-    (H : ι → 𝔸) (h : ∀ i, star (H i) = -(H i)) :
-    star (∑ i : ι, H i) = -(∑ i : ι, H i) := by
-  calc
-    star (∑ i : ι, H i) = ∑ i : ι, star (H i) := star_sum Finset.univ H
-    _ = ∑ i : ι, -(H i) := by simp [h]
-    _ = -(∑ i : ι, H i) := by simp
-
 /-- Per-factor norm bound in the anti-Hermitian case: the exponential factor is unitary. -/
 lemma norm_factor_le_skew (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
     [NormedAlgebra ℚ 𝔸] [NormedSpace ℝ 𝔸] [CompleteSpace 𝔸] [StarRing 𝔸]
@@ -389,7 +351,7 @@ lemma norm_factor_le_skew (P : ProductFormulaData) {𝔸 : Type*} [NormedRing �
   have hnorm_exp : ‖exp ((u * t) • (P.generator H i))‖ = 1 :=
     norm_exp_smul_of_skewAdjoint hA_skew (u * t)
   have hA_le : ‖P.generator H i‖ ≤ ‖H (P.perm i.1 i.2)‖ :=
-    ProductFormulaData.norm_smul_le_of_abs_le_one (P.coeff i)
+    norm_smul_le_of_abs_le_one (P.coeff i)
       (H (P.perm i.1 i.2)) (P.coeff_abs_le_one i)
   have harg : (u * t * P.coeff i) • H (P.perm i.1 i.2) =
       (u * t) • (P.generator H i) := by

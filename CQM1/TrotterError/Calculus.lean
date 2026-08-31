@@ -5,7 +5,6 @@ Authors: Foresight Quantum
 -/
 module
 
-public import Mathlib.Analysis.CStarAlgebra.Basic
 public import Mathlib.Analysis.Calculus.Taylor
 public import Mathlib.Analysis.SpecialFunctions.Exponential
 public import Mathlib.Data.Nat.Choose.Multinomial
@@ -36,7 +35,8 @@ namespace TrotterError
 
 open NormedSpace
 open Asymptotics
-open scoped Topology BigOperators ContDiff
+open Finset
+open scoped Topology BigOperators ContDiff algebraMap
 
 /-- The `q`-th iterated derivative of `u ↦ exp (u • A)` is `u ↦ A^q * exp (u • A)`. -/
 theorem iteratedDeriv_exp_smul_const {𝔸 : Type*} [NormedRing 𝔸]
@@ -284,6 +284,15 @@ lemma contDiffAt_exp_smul_const {𝔸 : Type*} [NormedRing 𝔸]
     [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] (A : 𝔸) (m : ℕ) (t : ℝ) :
     ContDiffAt ℝ m (fun u : ℝ => exp (u • A)) t :=
   (NormedSpace.exp_analytic (t • A)).contDiffAt.comp t
+    (ContDiffAt.smul (f := fun u : ℝ => u) (g := fun _ : ℝ => A) contDiffAt_id contDiffAt_const)
+
+/-- `u ↦ exp (u • A)` is smooth. -/
+lemma contDiff_exp_smul_const {𝔸 : Type*} [NormedRing 𝔸]
+    [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] (A : 𝔸) :
+    ContDiff ℝ ∞ (fun t : ℝ => exp (t • A)) := by
+  rw [contDiff_iff_contDiffAt]
+  intro t
+  exact ((NormedSpace.exp_analytic (t • A)).contDiffAt).comp t
     (ContDiffAt.smul (f := fun u : ℝ => u) (g := fun _ : ℝ => A) contDiffAt_id contDiffAt_const)
 
 /-! ### CS19 Supplementary Lemma 1: big-O scaling iff derivatives vanish at 0 -/
@@ -539,5 +548,270 @@ theorem norm_pow_mul_exp_le {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℚ 
     _ = ‖H‖ ^ k * Real.exp (s * ‖H‖) := by
         congr 1
         rw [norm_smul, Real.norm_eq_abs, abs_of_nonneg hs]
+
+/-! ### Finset / `finAntidiagonal` / multinomial reindexing -/
+
+/-- The antidiagonal of `Fin (m + 1)` fibers over that of `Fin m` by the value at the last index,
+via `Fin.snoc`. -/
+lemma sum_finAntidiagonal_snoc {𝔸 : Type*} [AddCommMonoid 𝔸] (m n : ℕ)
+    (G : (Fin (m + 1) → ℕ) → 𝔸) :
+    (∑ q' ∈ finAntidiagonal (m + 1) n, G q') =
+      ∑ k ∈ range (n + 1), ∑ q ∈ finAntidiagonal m (n - k), G (Fin.snoc q k) := by
+  rw [sum_sigma']
+  refine (sum_bij (fun x _ => Fin.snoc x.2 x.1) ?_ ?_ ?_ ?_).symm
+  · intro x hx
+    rw [mem_finAntidiagonal, Fin.sum_snoc]
+    have hx' : x.1 ∈ range (n + 1) ∧ x.2 ∈ finAntidiagonal m (n - x.1) :=
+      mem_sigma.mp hx
+    have hle : x.1 ≤ n := by simpa using mem_range.mp hx'.1
+    have hsum : (∑ i : Fin m, x.2 i) = n - x.1 := by
+      simpa using mem_finAntidiagonal.mp hx'.2
+    rw [hsum, Nat.sub_add_cancel hle]
+  · intro x₁ _ x₂ _ h
+    obtain ⟨hq, hk⟩ := Fin.snoc_inj.mp h
+    exact Sigma.ext hk (heq_of_eq hq)
+  · intro q' hq'
+    have hsum : (∑ i : Fin (m + 1), q' i) = n := mem_finAntidiagonal.mp hq'
+    have hsplit : (∑ i : Fin m, q' i.castSucc) + q' (Fin.last m) = n := by
+      simpa [Fin.sum_univ_castSucc] using hsum
+    refine ⟨⟨q' (Fin.last m), Fin.init q'⟩, ?_, Fin.snoc_init_self q'⟩
+    rw [mem_sigma]; constructor
+    · rw [mem_range]
+      have hle : q' (Fin.last m) ≤ n := by
+        rw [← hsplit]
+        exact Nat.le_add_left _ _
+      exact Nat.lt_succ_of_le hle
+    · rw [mem_finAntidiagonal]
+      have hinit : (∑ i : Fin m, q' i.castSucc) = n - q' (Fin.last m) := by
+        rw [← hsplit, Nat.add_sub_cancel_right]
+      simpa [Fin.init] using hinit
+  · tauto
+
+/-- Appending a zero multiplicity does not change the multinomial coefficient. -/
+lemma multinomial_snoc_zero {m : ℕ} (q : Fin m → ℕ) :
+    Nat.multinomial (univ : Finset (Fin (m + 1))) (Fin.snoc q 0) =
+      Nat.multinomial (univ : Finset (Fin m)) q := by
+  simp only [Nat.multinomial]
+  rw [Fin.sum_snoc, Fin.prod_univ_castSucc]
+  simp [Fin.snoc_castSucc, Fin.snoc_last]
+
+/-- Reindexing `range (n+1)` minus `0` to `range n` by `k ↦ k + 1`. -/
+lemma sum_range_filter_ne_zero {𝔸 : Type*} [AddCommMonoid 𝔸] (n : ℕ) (f : ℕ → 𝔸) :
+    (∑ k ∈ (range (n + 1)).filter (fun k => k ≠ 0), f k) =
+      ∑ k ∈ range n, f (k + 1) := by
+  refine (sum_bij (fun k _ => k + 1) ?_ ?_ ?_ ?_).symm
+  · intro k hk
+    rw [mem_filter, mem_range]
+    exact ⟨Nat.add_lt_add_right (mem_range.mp hk) 1, Nat.succ_ne_zero k⟩
+  · intros; lia
+  · intro b hb
+    rw [mem_filter, mem_range] at hb
+    have hbpos : 0 < b := Nat.pos_of_ne_zero hb.2
+    refine ⟨b - 1, ?_, ?_⟩
+    · rw [mem_range]; lia
+    · lia
+  · tauto
+
+/-- The sum over `finAntidiagonal (s + 1) p` filtered by nonzero last entry equals the sum over the
+`k ≥ 1` slices of the `Fin.snoc` fibration. -/
+lemma sum_finAntidiagonal_filter_last_ne_zero {𝔸 : Type*} [AddCommMonoid 𝔸] (s p : ℕ)
+    (G : (Fin (s + 1) → ℕ) → 𝔸) :
+    (∑ q ∈ (finAntidiagonal (s + 1) p).filter (fun q => q (Fin.last s) ≠ 0), G q) =
+      ∑ k ∈ range p, ∑ q ∈ finAntidiagonal s (p - (k + 1)),
+        G (Fin.snoc q (k + 1)) := by
+  rw [sum_filter, sum_finAntidiagonal_snoc]
+  simp only [Fin.snoc_last]
+  trans (∑ x ∈ (range (p + 1)).filter (fun x => x ≠ 0),
+      ∑ q ∈ finAntidiagonal s (p - x), G (Fin.snoc q x))
+  · rw [sum_filter]
+    apply sum_congr rfl
+    intro x _
+    by_cases h : x = 0 <;> simp [h]
+  · rw [sum_range_filter_ne_zero]
+
+/-- The product of factorials of a snoc'd multiplicity factors into the outer `j!` and the inner
+product. -/
+lemma factorial_prod_snoc {s : ℕ} (q : Fin s → ℕ) (j : ℕ) :
+    (∏ i : Fin (s + 1), (Nat.factorial ((Fin.snoc q j : Fin (s + 1) → ℕ) i) : ℝ)) =
+      (∏ i : Fin s, (Nat.factorial (q i) : ℝ)) * (Nat.factorial j : ℝ) := by
+  rw [Fin.prod_univ_castSucc (fun i : Fin (s + 1) =>
+    (Nat.factorial ((Fin.snoc q j : Fin (s + 1) → ℕ) i) : ℝ))]
+  simp [Fin.snoc_castSucc, Fin.snoc_last]
+
+/-- The inverse factorial coefficient of a snoc'd multiplicity factors as `j!⁻¹ · ∏qᵢ!⁻¹`. -/
+lemma factorial_inv_snoc {s : ℕ} (q : Fin s → ℕ) (j : ℕ) :
+    (Nat.factorial j : ℝ)⁻¹ * (∏ i : Fin s, (Nat.factorial (q i) : ℝ))⁻¹ =
+      (∏ i : Fin (s + 1), (Nat.factorial ((Fin.snoc q j : Fin (s + 1) → ℕ) i) : ℝ))⁻¹ := by
+  rw [← mul_inv, mul_comm (Nat.factorial j : ℝ) (∏ i : Fin s, (Nat.factorial (q i) : ℝ)),
+    factorial_prod_snoc]
+
+/-- Reindexing the double sum over `{(j, i) | j < p, i < p - j}` (equivalently `i + j < p`)
+to the sum over `{(m, i) | m < p, i ≤ m}` via `m = i + j`. -/
+lemma sum_range_add_antidiagonal {𝔸 : Type*} [AddCommMonoid 𝔸] (p : ℕ) (f : ℕ → ℕ → 𝔸) :
+    (∑ j ∈ range p, ∑ i ∈ range (p - j), f i j) =
+      ∑ m ∈ range p, ∑ i ∈ range (m + 1), f i (m - i) := by
+  rw [Finset.sum_sigma' (s := range p) (t := fun j => range (p - j)) (f := fun j i => f i j),
+    Finset.sum_sigma' (s := range p) (t := fun m => range (m + 1)) (f := fun m i => f i (m - i))]
+  refine Finset.sum_bij (fun x _ => ⟨x.2 + x.1, x.2⟩) ?_ ?_ ?_ ?_
+  · intro x hx
+    rw [mem_sigma] at hx
+    rcases hx with ⟨hx1, hx2⟩
+    rw [mem_range] at hx1 hx2
+    rw [mem_sigma]
+    constructor
+    · rw [mem_range]
+      exact (Nat.lt_sub_iff_add_lt).mp hx2
+    · rw [mem_range]
+      exact Nat.lt_succ_of_le (Nat.le_add_right x.2 x.1)
+  · intro a₁ _ a₂ _ h
+    rcases a₁ with ⟨j₁, i₁⟩
+    rcases a₂ with ⟨j₂, i₂⟩
+    have hi : i₁ = i₂ := congrArg Sigma.snd h
+    have hj : j₁ = j₂ := by
+      have hsum : i₁ + j₁ = i₂ + j₂ := congrArg Sigma.fst h
+      subst hi
+      exact Nat.add_left_cancel hsum
+    subst hj
+    subst hi
+    rfl
+  · intro b hb
+    rw [mem_sigma] at hb
+    rcases hb with ⟨hb1, hb2⟩
+    rw [mem_range] at hb1 hb2
+    refine ⟨⟨b.1 - b.2, b.2⟩, ?_, ?_⟩
+    · rw [mem_sigma]
+      constructor
+      · rw [mem_range]
+        exact lt_of_le_of_lt (Nat.sub_le b.1 b.2) hb1
+      · rw [mem_range]
+        have hle : b.2 ≤ b.1 := Nat.le_of_lt_succ hb2
+        have hsum : b.2 + (b.1 - b.2) = b.1 := by rw [add_comm, Nat.sub_add_cancel hle]
+        exact (Nat.lt_sub_iff_add_lt).mpr (by simpa [hsum] using hb1)
+    · rcases b with ⟨m, i⟩
+      have hle : i ≤ m := Nat.le_of_lt_succ hb2
+      congr
+      simpa [add_comm] using (Nat.sub_add_cancel hle)
+  · intro x _
+    congr
+    rw [Nat.add_comm]
+    exact (Nat.add_sub_cancel_right x.1 x.2).symm
+
+/-- Reindexing `j ↦ p - j - 1` over the antidiagonal fibers: the sum over `j < p` of the
+`Fin.snoc q (p - j)`-fiber equals the sum over `k < p` of the `Fin.snoc q (k + 1)`-fiber. -/
+lemma sum_range_finAntidiagonal_reflect {s p : ℕ} {𝔸 : Type*} [AddCommMonoid 𝔸]
+    (G : (Fin (s + 1) → ℕ) → 𝔸) :
+    (∑ j ∈ range p, ∑ q ∈ finAntidiagonal s j, G (Fin.snoc q (p - j))) =
+      ∑ k ∈ range p, ∑ q ∈ finAntidiagonal s (p - (k + 1)), G (Fin.snoc q (k + 1)) := by
+  calc
+    (∑ j ∈ range p, ∑ q ∈ finAntidiagonal s j, G (Fin.snoc q (p - j)))
+        = ∑ j ∈ range p, ∑ q ∈ finAntidiagonal s (p - ((p - 1 - j) + 1)),
+            G (Fin.snoc q ((p - 1 - j) + 1)) := by
+              apply Finset.sum_congr rfl
+              intro j hj
+              have hj' : j < p := mem_range.mp hj
+              have h1 : p - ((p - 1 - j) + 1) = j := by lia
+              have h2 : (p - 1 - j) + 1 = p - j := by lia
+              rw [h1, h2]
+    _ = ∑ k ∈ range p, ∑ q ∈ finAntidiagonal s (p - (k + 1)), G (Fin.snoc q (k + 1)) := by
+              simpa using (Finset.sum_range_reflect
+                (fun k => ∑ q ∈ finAntidiagonal s (p - (k + 1)), G (Fin.snoc q (k + 1))) p)
+
+/-! ### General exponential and continuity lemmas -/
+
+/-- `exp (-x) * exp x = 1`. -/
+lemma exp_neg_mul_self {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [CompleteSpace 𝔸] (x : 𝔸) :
+    exp (-x) * exp x = 1 := by
+  simpa using (exp_add_of_commute (Commute.refl x).neg_left).symm
+
+/-- `exp x * exp (-x) = 1`. -/
+lemma exp_mul_neg_self {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [CompleteSpace 𝔸] (x : 𝔸) :
+    exp x * exp (-x) = 1 := by
+  simpa using (exp_add_of_commute (Commute.refl x).neg_right).symm
+
+/-- `t ↦ exp (t • A)` is continuous (over `ℝ`). -/
+lemma continuous_exp_smul_const {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸]
+    (A : 𝔸) : Continuous (fun t : ℝ => exp (t • A)) := by
+  rw [continuous_iff_continuousAt]
+  intro t
+  exact (contDiffAt_exp_smul_const A 1 t).continuousAt
+
+/-- `exp x` is a unit, with inverse `exp (-x)`. -/
+lemma isUnit_exp {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [CompleteSpace 𝔸] (x : 𝔸) :
+    IsUnit (exp x) :=
+  isUnit_iff_exists.mpr ⟨exp (-x), exp_mul_neg_self x, exp_neg_mul_self x⟩
+
+/-! ### General scalar / norm / star lemmas -/
+
+/-- In an ℝ-algebra, the scalar action `r • a` equals right multiplication `a * (r : 𝔸)`. -/
+lemma smul_eq_mul_right {𝔸 : Type*} [Ring 𝔸] [Algebra ℝ 𝔸] (r : ℝ) (a : 𝔸) :
+    r • a = a * (r : 𝔸) := by
+  rw [Algebra.smul_def, Algebra.commutes]
+
+/-- The Taylor coefficient `(j! : ℝ)⁻¹ * τ^j` acting by `•` equals the paper's form
+`(j! : ℝ)⁻¹ • x * (τ : 𝔸)^j`. -/
+lemma pow_smul_eq_smul_mul {𝔸 : Type*} [Ring 𝔸] [Algebra ℝ 𝔸] (j : ℕ) (x : 𝔸) (τ : ℝ) :
+    ((Nat.factorial j : ℝ)⁻¹ * τ ^ j) • x = (Nat.factorial j : ℝ)⁻¹ • x * (τ : 𝔸) ^ j := by
+  rw [mul_smul, smul_eq_mul_right (τ ^ j) x]
+  simp
+
+/-- `(r • a) * (c : 𝔸) = (r * c) • a` for scalars `r, c : ℝ`. -/
+lemma smul_mul_cast {𝔸 : Type*} [Ring 𝔸] [Algebra ℝ 𝔸] (r c : ℝ) (a : 𝔸) :
+    (r • a) * (c : 𝔸) = (r * c) • a := by
+  rw [smul_eq_mul_right r a, smul_eq_mul_right (r * c) a]
+  rw [mul_assoc]
+  rw [← map_mul (algebraMap ℝ 𝔸) r c]
+
+/-- Combining the scalar factors of the single-layer remainder integrand. -/
+lemma scalar_combine (k j : ℕ) (d τ u : ℝ) (hd : d ≠ 0) :
+    (d⁻¹ * ((τ - u) ^ k / (Nat.factorial k : ℝ))) * τ ^ j =
+      (τ - u) ^ k * τ ^ j / ((Nat.factorial k : ℝ) * d) := by
+  have hk : (Nat.factorial k : ℝ) ≠ 0 := by positivity
+  field_simp [hd, hk]
+
+/-- `|c| ≤ 1` implies `‖c • A‖ ≤ ‖A‖` in any normed algebra. -/
+lemma norm_smul_le_of_abs_le_one {𝔸 : Type*} [NormedRing 𝔸] [NormedSpace ℝ 𝔸]
+    (c : ℝ) (A : 𝔸) (hc : |c| ≤ 1) : ‖c • A‖ ≤ ‖A‖ := by
+  calc
+    ‖c • A‖ = |c| * ‖A‖ := by rw [norm_smul, Real.norm_eq_abs]
+    _ ≤ 1 * ‖A‖ := mul_le_mul_of_nonneg_right hc (norm_nonneg _)
+    _ = ‖A‖ := one_mul _
+
+/-- For `u ≤ 1`, `0 ≤ t`, and `|c| ≤ 1`, the exponential argument `(u * t) * ‖c • A‖` is at
+most `t * ‖A‖`. -/
+lemma norm_smul_exp_arg_le {𝔸 : Type*} [NormedRing 𝔸] [NormedSpace ℝ 𝔸]
+    (c : ℝ) (A : 𝔸) (hc : |c| ≤ 1) (u t : ℝ) (ht : 0 ≤ t) (hu1 : u ≤ 1) :
+    (u * t) * ‖c • A‖ ≤ t * ‖A‖ := by
+  have hc' : u * |c| ≤ 1 := by
+    simpa using mul_le_mul hu1 hc (abs_nonneg _) zero_le_one
+  have hle : u * t * |c| ≤ t := by
+    calc
+      u * t * |c| = t * (u * |c|) := by ring
+      _ ≤ t * 1 := mul_le_mul_of_nonneg_left hc' ht
+      _ = t := mul_one _
+  calc
+    (u * t) * ‖c • A‖ = u * t * |c| * ‖A‖ := by
+      rw [norm_smul, Real.norm_eq_abs]
+      ring
+    _ ≤ t * ‖A‖ := mul_le_mul_of_nonneg_right hle (norm_nonneg _)
+
+/-- `(s • A)` commutes with `A`. -/
+lemma commute_smul_self {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸] (A : 𝔸) (s : ℝ) :
+    Commute (s • A) A := by
+  rw [commute_iff_eq, smul_mul_assoc, mul_smul_comm]
+
+/-- `star (c • A) = -(c • A)` whenever `star A = -A` and `c` is real. -/
+lemma star_smul_of_skew {𝔸 : Type*} [Star 𝔸] [AddGroup 𝔸] [DistribSMul ℝ 𝔸] [StarModule ℝ 𝔸]
+    {A : 𝔸} {c : ℝ} (hA : star A = -A) :
+    star (c • A) = -(c • A) := by
+  rw [StarModule.star_smul, hA, star_trivial, smul_neg]
+
+/-- A sum of anti-Hermitian elements is anti-Hermitian. -/
+lemma sum_skewAdjoint {𝔸 : Type*} [AddCommGroup 𝔸] [StarAddMonoid 𝔸] {ι : Type*} [Fintype ι]
+    (H : ι → 𝔸) (h : ∀ i, star (H i) = -(H i)) :
+    star (∑ i : ι, H i) = -(∑ i : ι, H i) := by
+  calc
+    star (∑ i : ι, H i) = ∑ i : ι, star (H i) := star_sum Finset.univ H
+    _ = ∑ i : ι, -(H i) := by simp [h]
+    _ = -(∑ i : ι, H i) := by simp
 
 end TrotterError

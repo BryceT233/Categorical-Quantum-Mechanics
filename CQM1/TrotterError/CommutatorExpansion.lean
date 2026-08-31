@@ -6,8 +6,8 @@ Authors: Foresight Quantum
 module
 
 public import CQM1.TrotterError.ExpSMulConj
-
-import Mathlib.Analysis.SpecialFunctions.Integrals.Basic
+import CQM1.TrotterError.ListProd
+import CQM1.TrotterError.Integrals
 
 /-!
 # Multi-layer conjugation: commutator expansion and remainder norm bounds
@@ -82,23 +82,6 @@ noncomputable def conjCoeff {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 
     ((∏ i : Fin s, (Nat.factorial (q i) : ℝ))⁻¹ : ℝ) • adSequence A q B
 
 /-! ### Norm bounds for `thm:comm_exp_conj` -/
-
-/-- The beta-type integral `∫ u in uIoc 0 τ, |τ - u|^(q-1) du = |τ|^q / q`, for `1 ≤ q`. -/
-lemma integral_abs_sub_pow_uIoc (q : ℕ) (τ : ℝ) (hq : 1 ≤ q) :
-    (∫ u in Set.uIoc (0 : ℝ) τ, |τ - u| ^ (q - 1)) = |τ| ^ q / (q : ℝ) := by
-  have h := integral_pow_abs_sub_uIoc (a := τ) (b := (0 : ℝ)) (n := q - 1)
-  calc
-    (∫ u in Set.uIoc (0 : ℝ) τ, |τ - u| ^ (q - 1))
-        = (∫ u in Set.uIoc (τ : ℝ) 0, |u - τ| ^ (q - 1)) := by
-            rw [Set.uIoc_comm (a := (0 : ℝ)) (b := τ)]
-            exact setIntegral_congr_fun measurableSet_uIoc
-              (fun u _ => congrArg (fun t : ℝ => t ^ (q - 1)) (abs_sub_comm τ u))
-    _ = |τ| ^ q / (q : ℝ) := by
-            rw [h]
-            have hcast : ((q - 1 : ℕ) : ℝ) + 1 = (q : ℝ) := by
-              norm_cast
-              rw [Nat.sub_add_cancel hq]
-            rw [Nat.sub_add_cancel hq, hcast, abs_sub_comm (0 : ℝ) τ, sub_zero]
 
 /-- The integral-norm estimation shared by the general and skew-adjoint remainder bounds: given a
 nonnegative `C` and a pointwise bound for the smul'd conjugation, the beta integral yields
@@ -243,7 +226,7 @@ lemma norm_ofFn_drop_reverse_prod_exp_le {𝔸 : Type*} [NormedRing 𝔸] [Norme
     _ ≤ Real.exp (((List.ofFn (fun i : Fin s => |τ| * ‖A i‖)).drop k).sum) := h
 
 /-- The sum of the norms of `A j` and the strictly-larger layers is at most the total norm sum. -/
-lemma norm_point_add_drop_sum_le {𝔸 : Type*} [NormedRing 𝔸] (A : Fin s → 𝔸) (j : Fin s) :
+lemma norm_point_add_drop_sum_le {s} {𝔸 : Type*} [NormedRing 𝔸] (A : Fin s → 𝔸) (j : Fin s) :
     ‖A j‖ + ((List.ofFn (fun i : Fin s => ‖A i‖)).drop (j + 1)).sum ≤ ∑ i : Fin s, ‖A i‖ := by
   let l : List ℝ := List.ofFn (fun i : Fin s => ‖A i‖)
   have hlen : (j : ℕ) < l.length := by simp [l]
@@ -264,42 +247,6 @@ lemma norm_point_add_drop_sum_le {𝔸 : Type*} [NormedRing 𝔸] (A : Fin s →
 
 /-! ### Completion: layering the remainder sum into `alphaCommConj` -/
 
-/-- The antidiagonal of `Fin (m + 1)` fibers over that of `Fin m` by the value at the last index,
-via `Fin.snoc`. -/
-lemma sum_finAntidiagonal_snoc {𝔸 : Type*} [AddCommMonoid 𝔸] (m n : ℕ)
-    (G : (Fin (m + 1) → ℕ) → 𝔸) :
-    (∑ q' ∈ finAntidiagonal (m + 1) n, G q') =
-      ∑ k ∈ range (n + 1), ∑ q ∈ finAntidiagonal m (n - k), G (Fin.snoc q k) := by
-  rw [sum_sigma']
-  refine (sum_bij (fun x _ => Fin.snoc x.2 x.1) ?_ ?_ ?_ ?_).symm
-  · intro x hx
-    rw [mem_finAntidiagonal, Fin.sum_snoc]
-    have hx' : x.1 ∈ range (n + 1) ∧ x.2 ∈ finAntidiagonal m (n - x.1) :=
-      mem_sigma.mp hx
-    have hle : x.1 ≤ n := by simpa using mem_range.mp hx'.1
-    have hsum : (∑ i : Fin m, x.2 i) = n - x.1 := by
-      simpa using mem_finAntidiagonal.mp hx'.2
-    rw [hsum, Nat.sub_add_cancel hle]
-  · intro x₁ _ x₂ _ h
-    obtain ⟨hq, hk⟩ := Fin.snoc_inj.mp h
-    exact Sigma.ext hk (heq_of_eq hq)
-  · intro q' hq'
-    have hsum : (∑ i : Fin (m + 1), q' i) = n := mem_finAntidiagonal.mp hq'
-    have hsplit : (∑ i : Fin m, q' i.castSucc) + q' (Fin.last m) = n := by
-      simpa [Fin.sum_univ_castSucc] using hsum
-    refine ⟨⟨q' (Fin.last m), Fin.init q'⟩, ?_, Fin.snoc_init_self q'⟩
-    rw [mem_sigma]; constructor
-    · rw [mem_range]
-      have hle : q' (Fin.last m) ≤ n := by
-        rw [← hsplit]
-        exact Nat.le_add_left _ _
-      exact Nat.lt_succ_of_le hle
-    · rw [mem_finAntidiagonal]
-      have hinit : (∑ i : Fin m, q' i.castSucc) = n - q' (Fin.last m) := by
-        rw [← hsplit, Nat.add_sub_cancel_right]
-      simpa [Fin.init] using hinit
-  · tauto
-
 /-- The layer-by-layer sum of multinomial-weighted `adSequence` norms appearing in the bound of
 `commutatorRemainder`, summed over the 1-based layers `1..s`. -/
 noncomputable def layerSum {𝔸 : Type*} [NormedRing 𝔸] {s : ℕ} (A : Fin s → 𝔸)
@@ -307,49 +254,6 @@ noncomputable def layerSum {𝔸 : Type*} [NormedRing 𝔸] {s : ℕ} (A : Fin s
   ∑ j : Fin s, ∑ q ∈ (finAntidiagonal (j + 1) p).filter (fun q => q (Fin.last j) ≠ 0),
     (Nat.multinomial (univ : Finset (Fin (j + 1))) q : ℝ) *
       ‖adSequence (prefixRestrict A (j + 1) (Nat.succ_le_of_lt j.2)) q B‖
-
-/-- Appending a zero multiplicity does not change the multinomial coefficient. -/
-lemma multinomial_snoc_zero {m : ℕ} (q : Fin m → ℕ) :
-    Nat.multinomial (univ : Finset (Fin (m + 1))) (Fin.snoc q 0) =
-      Nat.multinomial (univ : Finset (Fin m)) q := by
-  simp only [Nat.multinomial]
-  rw [Fin.sum_snoc, Fin.prod_univ_castSucc]
-  simp [Fin.snoc_castSucc, Fin.snoc_last]
-
-/-- Reindexing `range (n+1)` minus `0` to `range n` by `k ↦ k + 1`. -/
-lemma sum_range_filter_ne_zero {𝔸 : Type*} [AddCommMonoid 𝔸] (n : ℕ) (f : ℕ → 𝔸) :
-    (∑ k ∈ (range (n + 1)).filter (fun k => k ≠ 0), f k) =
-      ∑ k ∈ range n, f (k + 1) := by
-  refine (sum_bij (fun k _ => k + 1) ?_ ?_ ?_ ?_).symm
-  · intro k hk
-    rw [mem_filter, mem_range]
-    exact ⟨Nat.add_lt_add_right (mem_range.mp hk) 1, Nat.succ_ne_zero k⟩
-  · intro a _ b _ h
-    exact Nat.succ.inj h
-  · intro b hb
-    rw [mem_filter, mem_range] at hb
-    have hbpos : 0 < b := Nat.pos_of_ne_zero hb.2
-    refine ⟨b - 1, ?_, ?_⟩
-    · rw [mem_range]; lia
-    · lia
-  · tauto
-
-/-- The sum over `finAntidiagonal (s + 1) p` filtered by nonzero last entry equals the sum over the
-`k ≥ 1` slices of the `Fin.snoc` fibration. -/
-lemma sum_finAntidiagonal_filter_last_ne_zero {𝔸 : Type*} [AddCommMonoid 𝔸] (s p : ℕ)
-    (G : (Fin (s + 1) → ℕ) → 𝔸) :
-    (∑ q ∈ (finAntidiagonal (s + 1) p).filter (fun q => q (Fin.last s) ≠ 0), G q) =
-      ∑ k ∈ range p, ∑ q ∈ finAntidiagonal s (p - (k + 1)),
-        G (Fin.snoc q (k + 1)) := by
-  rw [sum_filter, sum_finAntidiagonal_snoc]
-  simp only [Fin.snoc_last]
-  trans (∑ x ∈ (range (p + 1)).filter (fun x => x ≠ 0),
-      ∑ q ∈ finAntidiagonal s (p - x), G (Fin.snoc q x))
-  · rw [sum_filter]
-    apply sum_congr rfl
-    intro x _
-    by_cases h : x = 0 <;> simp [h]
-  · rw [sum_range_filter_ne_zero]
 
 /-- Splitting `alphaCommConj` over `Fin (s + 1)` into the inner `Fin s` part (zero on the last
 layer) and the part with nonzero outermost multiplicity. -/
@@ -362,8 +266,7 @@ lemma alphaCommConj_snoc_split {𝔸 : Type*} [NormedRing 𝔸] {s : ℕ} (A : F
     alphaCommConj A B p
         = ∑ q' ∈ finAntidiagonal (s + 1) p,
             (Nat.multinomial (univ : Finset (Fin (s + 1))) q' : ℝ) *
-              ‖adSequence A q' B‖ := by
-              rfl
+              ‖adSequence A q' B‖ := rfl
     _ = ∑ k ∈ range (p + 1), ∑ q ∈ finAntidiagonal s (p - k),
             (Nat.multinomial (univ : Finset (Fin (s + 1))) (Fin.snoc q k) : ℝ) *
               ‖adSequence A (Fin.snoc q k) B‖ := by
@@ -385,14 +288,9 @@ lemma alphaCommConj_snoc_split {𝔸 : Type*} [NormedRing 𝔸] {s : ℕ} (A : F
                 alphaCommConj (fun i : Fin s => A i.castSucc) B p from by
                 simp [alphaCommConj, adSequence_snoc_zero, multinomial_snoc_zero]]
     _ = alphaCommConj (fun i : Fin s => A i.castSucc) B p +
-          (∑ k ∈ range p, ∑ q ∈ finAntidiagonal s (p - (k + 1)),
-            (Nat.multinomial (univ : Finset (Fin (s + 1))) (Fin.snoc q (k + 1)) : ℝ) *
-              ‖adSequence A (Fin.snoc q (k + 1)) B‖) := by
-              rw [add_comm]
-    _ = alphaCommConj (fun i : Fin s => A i.castSucc) B p +
           (∑ q ∈ (finAntidiagonal (s + 1) p).filter (fun q => q (Fin.last s) ≠ 0),
             (Nat.multinomial (univ : Finset (Fin (s + 1))) q : ℝ) * ‖adSequence A q B‖) := by
-              rw [sum_finAntidiagonal_filter_last_ne_zero]
+              rw [add_comm, sum_finAntidiagonal_filter_last_ne_zero]
 
 /-- The layer sum is bounded by `alphaCommConj`: collapsing each `(j, q)` into the antidiagonal of
 `Fin s` by padding with zeros (theory.tex:198-214, the `Σ_k Σ_q → Σ_{q₁+⋯+q_s=p}` step). -/
@@ -442,8 +340,7 @@ lemma coeff_eq_multinomial_div_factorial {j p : ℕ} (q : Fin (j + 1) → ℕ) (
   have hprod : (∏ i : Fin (j + 1), (Nat.factorial (q i) : ℝ)) ≠ 0 :=
     prod_ne_zero_iff.mpr (fun i _ => by positivity)
   field_simp [hfac_p, hprod]
-  rw [← hms]
-  ring
+  rw [← hms]; ring
 
 /-- Combining the exponential factors of one remainder summand into the global exponential. -/
 lemma exp_bound_combine {s} {𝔸 : Type*} [NormedRing 𝔸] (A : Fin s → 𝔸) (j : Fin s) (τ : ℝ) :
@@ -462,8 +359,7 @@ lemma exp_bound_combine {s} {𝔸 : Type*} [NormedRing 𝔸] (A : Fin s → 𝔸
         = Real.exp (2 * (((List.ofFn (fun i : Fin s => |τ| * ‖A i‖)).drop (j + 1)).sum +
               |τ| * ‖A j‖)) := by
               rw [← Real.exp_add, ← Real.exp_add]
-              congr 1
-              ring
+              congr 1; ring
     _ ≤ Real.exp (2 * |τ| * ∑ i : Fin s, ‖A i‖) := by
               apply Real.exp_le_exp.mpr
               rw [hS]
@@ -534,9 +430,7 @@ lemma norm_commutatorRemainderTerm_le {s} {𝔸 : Type*} [NormedRing 𝔸] [Norm
             = (∑ i : Fin j, q i.castSucc) + q (Fin.last j) := by rw [add_comm]
         _ = ∑ i : Fin (j + 1), q i := (Fin.sum_univ_castSucc (f := q)).symm
         _ = p := hsum
-    rw [hqsum]
-    dsimp [D]
-    rw [← mul_assoc]
+    rw [hqsum, ← mul_assoc]
     exact coeff_eq_multinomial_div_factorial q τ hsum (by lia)
   calc
     ‖commutatorRemainderTerm A B τ j q‖
@@ -583,8 +477,8 @@ theorem norm_commutatorRemainder_le {s} {𝔸 : Type*} [NormedRing 𝔸] [Normed
       (fun q => q (Fin.last j) ≠ 0),
         ‖adSequence (prefixRestrict A (j + 1) (Nat.succ_le_of_lt j.2)) q B‖ *
           (Nat.multinomial (univ : Finset (Fin (j + 1))) q : ℝ) * |τ| ^ p /
-            (Nat.factorial p : ℝ) * Real.exp (2 * |τ| * ∑ i : Fin s, ‖A i‖) := by
-    exact sum_le_sum (fun j _ => sum_le_sum (fun q hq =>
+            (Nat.factorial p : ℝ) * Real.exp (2 * |τ| * ∑ i : Fin s, ‖A i‖) :=
+    sum_le_sum (fun j _ => sum_le_sum (fun q hq =>
       norm_commutatorRemainderTerm_le A B p τ j q (mem_filter.mp hq).1 (mem_filter.mp hq).2))
   have h3 : ∑ j : Fin s, ∑ q ∈ (finAntidiagonal (j + 1) p).filter
       (fun q => q (Fin.last j) ≠ 0),
@@ -649,11 +543,10 @@ lemma norm_conj_smul_integral_le_of_skew {𝔸 : Type*} [NormedRing 𝔸] [Norme
     (hq : 1 ≤ q) (hD : 0 < D) (τ : ℝ) :
     ‖∫ u in 0..τ, (((τ - u) ^ (q - 1) * τ ^ m / D) : ℝ) • (expSMulConj A X u)‖ ≤
       ‖X‖ * |τ| ^ (q + m) / ((q : ℝ) * D) := by
-  let C : ℝ := ‖X‖
-  have hC : 0 ≤ C := norm_nonneg X
+  have hC : 0 ≤ ‖X‖ := norm_nonneg X
   have hpoint : ∀ u ∈ Set.uIoc (0 : ℝ) τ,
       ‖(((τ - u) ^ (q - 1) * τ ^ m / D) : ℝ) • (expSMulConj A X u)‖
-        ≤ C * (|τ - u| ^ (q - 1) * |τ| ^ m / D) := by
+        ≤ ‖X‖ * (|τ - u| ^ (q - 1) * |τ| ^ m / D) := by
     intro u hu
     have habs : |(τ - u) ^ (q - 1) * τ ^ m / D| = |τ - u| ^ (q - 1) * |τ| ^ m / D := by
       rw [abs_div, abs_mul, abs_pow, abs_pow, abs_of_nonneg (le_of_lt hD)]
@@ -675,13 +568,12 @@ lemma norm_conj_smul_integral_le_of_skew {𝔸 : Type*} [NormedRing 𝔸] [Norme
       ‖(((τ - u) ^ (q - 1) * τ ^ m / D) : ℝ) • (expSMulConj A X u)‖
           = (|τ - u| ^ (q - 1) * |τ| ^ m / D) * ‖expSMulConj A X u‖ := hsmul
       _ ≤ (|τ - u| ^ (q - 1) * |τ| ^ m / D) * ‖X‖ := by gcongr
-      _ = C * (|τ - u| ^ (q - 1) * |τ| ^ m / D) := by dsimp [C]; ring
+      _ = ‖X‖ * (|τ - u| ^ (q - 1) * |τ| ^ m / D) := by ring
   calc
     ‖∫ u in 0..τ, (((τ - u) ^ (q - 1) * τ ^ m / D) : ℝ) • (expSMulConj A X u)‖
-        ≤ C * (|τ| ^ m / D) * (|τ| ^ q / (q : ℝ)) :=
-            norm_integral_smul_conj_le A X q m D hq hD τ C hC hpoint
+        ≤ ‖X‖ * (|τ| ^ m / D) * (|τ| ^ q / (q : ℝ)) :=
+            norm_integral_smul_conj_le A X q m D hq hD τ ‖X‖ hC hpoint
     _ = ‖X‖ * |τ| ^ (q + m) / ((q : ℝ) * D) := by
-            dsimp [C]
             have hq_ne : (q : ℝ) ≠ 0 := by positivity
             have hDne : D ≠ 0 := ne_of_gt hD
             field_simp [hq_ne, hDne]
@@ -732,9 +624,7 @@ lemma norm_commutatorRemainderTerm_le_of_skewAdjoint {s} {𝔸 : Type*} [NormedR
             = (∑ i : Fin j, q i.castSucc) + q (Fin.last j) := by rw [add_comm]
         _ = ∑ i : Fin (j + 1), q i := (Fin.sum_univ_castSucc (f := q)).symm
         _ = p := hsum
-    rw [hqsum]
-    dsimp [D]
-    rw [← mul_assoc]
+    rw [hqsum, ← mul_assoc]
     exact coeff_eq_multinomial_div_factorial q τ hsum hlast_le
   calc
     ‖commutatorRemainderTerm A B τ j q‖
@@ -751,9 +641,7 @@ lemma norm_commutatorRemainderTerm_le_of_skewAdjoint {s} {𝔸 : Type*} [NormedR
         ((q (Fin.last j) : ℝ) * D)) := by ring
     _ = ‖adSequence (prefixRestrict A (j + 1) (Nat.succ_le_of_lt j.2)) q B‖ *
           (Nat.multinomial (univ : Finset (Fin (j + 1))) q : ℝ) * |τ| ^ p /
-            (Nat.factorial p : ℝ) := by
-              rw [hcoeff]; dsimp [X]
-              ring
+            (Nat.factorial p : ℝ) := by rw [hcoeff]; dsimp [X]; ring
 
 /-- The spectral-norm bound of the commutator remainder for anti-Hermitian operators
 (theory.tex:242-244). -/
@@ -820,23 +708,6 @@ lemma multiConj_succ {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸] {
   rw [hleft, hright]
   noncomm_ring
 
-/-- The product of factorials of a snoc'd multiplicity factors into the outer `j!` and the inner
-product. -/
-lemma factorial_prod_snoc {s : ℕ} (q : Fin s → ℕ) (j : ℕ) :
-    (∏ i : Fin (s + 1), (Nat.factorial ((Fin.snoc q j : Fin (s + 1) → ℕ) i) : ℝ)) =
-      (∏ i : Fin s, (Nat.factorial (q i) : ℝ)) * (Nat.factorial j : ℝ) := by
-  rw [Fin.prod_univ_castSucc (fun i : Fin (s + 1) =>
-    (Nat.factorial ((Fin.snoc q j : Fin (s + 1) → ℕ) i) : ℝ))]
-  simp [Fin.snoc_castSucc, Fin.snoc_last]
-
-/-- The inverse factorial coefficient of a snoc'd multiplicity factors as `j!⁻¹ · ∏qᵢ!⁻¹`. -/
-lemma factorial_inv_snoc {s : ℕ} (q : Fin s → ℕ) (j : ℕ) :
-    (Nat.factorial j : ℝ)⁻¹ * (∏ i : Fin s, (Nat.factorial (q i) : ℝ))⁻¹ =
-      (∏ i : Fin (s + 1), (Nat.factorial ((Fin.snoc q j : Fin (s + 1) → ℕ) i) : ℝ))⁻¹ := by
-  rw [← mul_inv,
-    mul_comm (Nat.factorial j : ℝ) (∏ i : Fin s, (Nat.factorial (q i) : ℝ)),
-    factorial_prod_snoc]
-
 /-- One summand of the `(s+1)`-layer coefficient, rewritten through the outermost `ad` layer. -/
 lemma conjCoeff_snoc_summand {𝔸 : Type*} [Ring 𝔸] [Algebra ℝ 𝔸] {s : ℕ}
     (A : Fin (s + 1) → 𝔸) (B : 𝔸) (q : Fin s → ℕ) (j : ℕ) :
@@ -858,9 +729,7 @@ lemma conjCoeff_succ {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸] {
   rw [conjCoeff, sum_finAntidiagonal_snoc s m
     (fun q' => ((∏ i : Fin (s + 1), (Nat.factorial (q' i) : ℝ))⁻¹ : ℝ) • adSequence A q' B)]
   apply sum_congr rfl
-  intro j _
-  rw [conjCoeff]
-  symm
+  intro j _; rw [conjCoeff]; symm
   have hsum : adPow (A (Fin.last s)) j (∑ q ∈ finAntidiagonal s (m - j),
       (∏ i : Fin s, (Nat.factorial (q i) : ℝ))⁻¹ •
         adSequence (fun i : Fin s => A i.castSucc) q B) =
@@ -881,5 +750,435 @@ lemma conjCoeff_succ {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸] {
 lemma prefixRestrict_self {𝔸 : Type*} {s : ℕ} (A : Fin s → 𝔸) (hm : s ≤ s) :
     prefixRestrict A s hm = A := by
   funext i; simp [prefixRestrict]
+
+/-! ### Auxiliary algebra and reindexing lemmas for `commutatorExpansion_conj` -/
+
+/-- Conjugation commutes with right multiplication by a central scalar:
+`expSMulConj A (X * (r : 𝔸)) τ = expSMulConj A X τ * (r : 𝔸)`. -/
+lemma expSMulConj_mul_cast {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
+    (A X : 𝔸) (r : ℝ) (τ : ℝ) :
+    expSMulConj A (X * (r : 𝔸)) τ = expSMulConj A X τ * (r : 𝔸) := by
+  rw [← smul_eq_mul_right r X]
+  calc
+    expSMulConj A (r • X) τ = r • expSMulConj A X τ := (expSMulConjLin A τ).map_smul' r X
+    _ = expSMulConj A X τ * (r : 𝔸) := smul_eq_mul_right r (expSMulConj A X τ)
+
+/-- `expSMulConj A · τ` distributes over a finite sum. -/
+lemma expSMulConj_map_sum {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
+    (A : 𝔸) (τ : ℝ) {ι : Type*} (s : Finset ι) (f : ι → 𝔸) :
+    expSMulConj A (∑ x ∈ s, f x) τ = ∑ x ∈ s, expSMulConj A (f x) τ := by
+  change (expSMulConjLin A τ).toAddMonoidHom (∑ x ∈ s, f x) =
+    ∑ x ∈ s, (expSMulConjLin A τ).toAddMonoidHom (f x)
+  exact map_sum (expSMulConjLin A τ).toAddMonoidHom f s
+
+/-- Right multiplication by a central scalar `(c : 𝔸)` commutes with the interval integral. -/
+lemma integral_mul_cast {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸] (F : ℝ → 𝔸) (c : ℝ)
+    (τ : ℝ) :
+    (∫ u in 0..τ, F u) * (c : 𝔸) = ∫ u in 0..τ, F u * (c : 𝔸) := by
+  rw [← smul_eq_mul_right c (∫ u in 0..τ, F u)]
+  rw [← intervalIntegral.integral_smul]
+  apply intervalIntegral.integral_congr_uIoo
+  intro u _
+  exact smul_eq_mul_right c (F u)
+
+/-- The single-layer Taylor remainder term, weighted by `d⁻¹` and `τ^j`, rewritten as the
+`commutatorRemainderTerm` integrand `((τ-u)^k * τ^j / (k! * d)) • expSMulConj A X u`. -/
+lemma expSMulConj_taylor_remainder_smul {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
+    (A X : 𝔸) (k j : ℕ) (d : ℝ) (τ : ℝ) (hd : d ≠ 0) :
+    (d⁻¹ • (∫ u in 0..τ, expSMulConj A X (τ - u) * ((u ^ k / (Nat.factorial k : ℝ)) : 𝔸)))
+        * (τ ^ j : 𝔸)
+      = ∫ u in 0..τ, ((τ - u) ^ k * τ ^ j / ((Nat.factorial k : ℝ) * d)) •
+          expSMulConj A X u := by
+  have hsub : (∫ u in 0..τ, expSMulConj A X (τ - u) * ((u ^ k / (Nat.factorial k : ℝ)) : 𝔸)) =
+        ∫ u in 0..τ, ((τ - u) ^ k / (Nat.factorial k : ℝ)) • expSMulConj A X u :=
+    (integral_smul_eq_integral_mul_sub (fun u => expSMulConj A X u) k τ).symm
+  rw [hsub]
+  rw [← intervalIntegral.integral_smul]
+  rw [← map_pow (algebraMap ℝ 𝔸) τ j]
+  rw [integral_mul_cast (fun u => d⁻¹ • (((τ - u) ^ k / (Nat.factorial k : ℝ)) •
+    expSMulConj A X u)) (τ ^ j) τ]
+  apply intervalIntegral.integral_congr_uIoo
+  intro u _
+  dsimp
+  rw [← mul_smul]
+  rw [smul_mul_cast]
+  congr 1
+  exact scalar_combine k j d τ u hd
+
+/-! ### Structural lemmas for the induction step of `commutatorExpansion_conj` -/
+
+/-- Restricting `A : Fin (s+1) → 𝔸` (via `prefixRestrict`) to the first `j+1` layers coincides
+whether one first drops to the inner `Fin s` sequence or works directly on `Fin (s+1)`. -/
+lemma prefixRestrict_castSucc {s} {𝔸 : Type*} (A : Fin (s + 1) → 𝔸) (j : Fin s) :
+    prefixRestrict (fun i : Fin s => A i.castSucc) (j + 1) (Nat.succ_le_of_lt j.2)
+      = prefixRestrict A (j + 1) (Nat.succ_le_of_lt j.castSucc.2) := by
+  funext i
+  simp [prefixRestrict]
+
+/-- Conjugating an inner-layer remainder term by the outermost layer yields the corresponding
+outer-layer remainder term at the same (inner) layer index. -/
+lemma expSMulConj_commutatorRemainderTerm {s} {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
+    (A : Fin (s + 1) → 𝔸) (B : 𝔸) (τ : ℝ) (j : Fin s) (q : Fin (j + 1) → ℕ) :
+    expSMulConj (A (Fin.last s)) (commutatorRemainderTerm (fun i : Fin s => A i.castSucc) B τ j q) τ
+      = commutatorRemainderTerm A B τ j.castSucc q := by
+  unfold commutatorRemainderTerm expSMulConj
+  let L_inner : 𝔸 :=
+    ((List.ofFn (fun i : Fin s => exp (τ • A i.castSucc))).drop (j + 1)).reverse.prod
+  let I_inner : 𝔸 := ∫ u in 0..τ,
+    (((τ - u) ^ (q (Fin.last j) - 1) * τ ^ (∑ i : Fin j, q i.castSucc) /
+        ((Nat.factorial (q (Fin.last j) - 1) : ℝ) *
+          ∏ i : Fin j, (Nat.factorial (q i.castSucc) : ℝ))) : ℝ) •
+    expSMulConj (A j.castSucc)
+      (adSequence (prefixRestrict (fun i : Fin s => A i.castSucc) (j + 1)
+        (Nat.succ_le_of_lt j.2)) q B) u
+  let R_inner : 𝔸 := ((List.ofFn (fun i : Fin s => exp (-τ • A i.castSucc))).drop (j + 1)).prod
+  let L_outer : 𝔸 :=
+    ((List.ofFn (fun i : Fin (s + 1) => exp (τ • A i))).drop (j.castSucc + 1)).reverse.prod
+  let I_outer : 𝔸 := ∫ u in 0..τ,
+    (((τ - u) ^ (q (Fin.last j) - 1) * τ ^ (∑ i : Fin j, q i.castSucc) /
+        ((Nat.factorial (q (Fin.last j) - 1) : ℝ) *
+          ∏ i : Fin j, (Nat.factorial (q i.castSucc) : ℝ))) : ℝ) •
+    expSMulConj (A j.castSucc)
+      (adSequence (prefixRestrict A (j.castSucc + 1) (Nat.succ_le_of_lt j.castSucc.2)) q B) u
+  let R_outer : 𝔸 :=
+    ((List.ofFn (fun i : Fin (s + 1) => exp (-τ • A i))).drop (j.castSucc + 1)).prod
+  change exp (τ • A (Fin.last s)) * ((L_inner * I_inner) * R_inner) * exp (-τ • A (Fin.last s))
+      = (L_outer * I_outer) * R_outer
+  have hL : exp (τ • A (Fin.last s)) * L_inner = L_outer := by
+    have hk : j + 1 ≤ s := Nat.succ_le_of_lt j.2
+    dsimp [L_inner, L_outer]
+    simpa using (ofFn_castSucc_drop_reverse_prod
+      (f := fun i : Fin (s + 1) => exp (τ • A i)) (k := j + 1) hk)
+  have hR : R_inner * exp (-τ • A (Fin.last s)) = R_outer := by
+    have hk : j + 1 ≤ s := Nat.succ_le_of_lt j.2
+    dsimp [R_inner, R_outer]
+    simpa using (ofFn_castSucc_drop_prod (f := fun i : Fin (s + 1) => exp (-τ • A i))
+      (k := j + 1) hk)
+  have hI : I_inner = I_outer := by
+    dsimp [I_inner, I_outer]
+    apply intervalIntegral.integral_congr_uIoo
+    intro u _
+    simp only [prefixRestrict_castSucc A j]
+  calc
+    exp (τ • A (Fin.last s)) * ((L_inner * I_inner) * R_inner) * exp (-τ • A (Fin.last s))
+        = (exp (τ • A (Fin.last s)) * L_inner) * I_inner *
+            (R_inner * exp (-τ • A (Fin.last s))) := by
+            noncomm_ring
+    _ = (L_outer * I_outer) * R_outer := by rw [hL, hI, hR]
+
+/-- Decomposing `commutatorRemainder` over `s + 1` layers into the inner remainder conjugated by the
+outermost layer plus the outermost-layer remainder. -/
+lemma commutatorRemainder_succ {s} {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
+    (A : Fin (s + 1) → 𝔸) (B : 𝔸) (p : ℕ) (τ : ℝ) :
+    commutatorRemainder A B p τ =
+      expSMulConj (A (Fin.last s)) (commutatorRemainder (fun i : Fin s => A i.castSucc) B p τ) τ
+        + ∑ q ∈ (finAntidiagonal (s + 1) p).filter (fun q => q (Fin.last s) ≠ 0),
+            commutatorRemainderTerm A B τ (Fin.last s) q := by
+  rw [commutatorRemainder, Fin.sum_univ_castSucc]
+  congr 1
+  · symm
+    rw [commutatorRemainder]
+    rw [expSMulConj_map_sum]
+    apply Finset.sum_congr rfl
+    intro j _
+    rw [expSMulConj_map_sum]
+    apply Finset.sum_congr rfl
+    intro q hq
+    exact expSMulConj_commutatorRemainderTerm A B τ j q
+
+/-! ### Reassembly lemmas for the polynomial and remainder parts -/
+
+/-- The polynomial part of the single-layer Taylor expansion reassembles, after reindexing by the
+total degree, into `Σ_{m < p} conjCoeff A B m · τ^m`. -/
+lemma conjCoeff_sum_of_taylor {s} {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
+    (A : Fin (s + 1) → 𝔸) (B : 𝔸) (p : ℕ) (τ : ℝ) :
+    (∑ j ∈ range p,
+        (∑ i ∈ range (p - j), (Nat.factorial i : ℝ)⁻¹ •
+          (adPow (A (Fin.last s)) i (conjCoeff (fun i : Fin s => A i.castSucc) B j)) * (τ ^ i : 𝔸))
+          * (τ ^ j : 𝔸))
+      = ∑ m ∈ range p, conjCoeff A B m * (τ ^ m : 𝔸) := by
+  calc
+    (∑ j ∈ range p, (∑ i ∈ range (p - j), (Nat.factorial i : ℝ)⁻¹ •
+        (adPow (A (Fin.last s)) i (conjCoeff (fun i : Fin s => A i.castSucc) B j)) * (τ ^ i : 𝔸))
+          * (τ ^ j : 𝔸))
+        = ∑ j ∈ range p, ∑ i ∈ range (p - j),
+            ((Nat.factorial i : ℝ)⁻¹ •
+              (adPow (A (Fin.last s)) i (conjCoeff (fun i : Fin s => A i.castSucc) B j))) *
+              (τ ^ (i + j) : 𝔸) := by
+              apply Finset.sum_congr rfl
+              intro j _
+              rw [Finset.sum_mul]
+              apply Finset.sum_congr rfl
+              intro i _
+              rw [mul_assoc]
+              rw [show (τ ^ i : 𝔸) * (τ ^ j : 𝔸) = (τ ^ (i + j) : 𝔸) by rw [← pow_add]]
+    _ = ∑ m ∈ range p, ∑ i ∈ range (m + 1),
+            ((Nat.factorial i : ℝ)⁻¹ •
+              (adPow (A (Fin.last s)) i (conjCoeff (fun i : Fin s => A i.castSucc) B (m - i)))) *
+              (τ ^ m : 𝔸) := by
+              rw [sum_range_add_antidiagonal p
+                (fun i j => ((Nat.factorial i : ℝ)⁻¹ •
+                  (adPow (A (Fin.last s)) i (conjCoeff (fun i : Fin s => A i.castSucc) B j))) *
+                    (τ ^ (i + j) : 𝔸))]
+              apply Finset.sum_congr rfl
+              intro m hm
+              apply Finset.sum_congr rfl
+              intro i hi
+              have hi' : i ≤ m := Nat.le_of_lt_succ (mem_range.mp hi)
+              congr 1
+              rw [show i + (m - i) = m by lia]
+    _ = ∑ m ∈ range p, conjCoeff A B m * (τ ^ m : 𝔸) := by
+              apply Finset.sum_congr rfl
+              intro m _
+              rw [← Finset.sum_mul]
+              congr 1
+              rw [conjCoeff_succ A B m]
+
+/-- The outermost-layer (`j = Fin.last s`) remainder term, written as the smul-integral of the
+conjugated `adPow A' (k + 1)` applied to the inner `adSequence`. -/
+lemma commutatorRemainderTerm_last {s} {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
+    (A : Fin (s + 1) → 𝔸) (B : 𝔸) (τ : ℝ) (q : Fin s → ℕ) (m : ℕ) :
+    commutatorRemainderTerm A B τ (Fin.last s) (Fin.snoc q m) =
+      ∫ u in 0..τ, (((τ - u) ^ (m - 1) * τ ^ (∑ i : Fin s, q i) /
+          ((Nat.factorial (m - 1) : ℝ) * ∏ i : Fin s, (Nat.factorial (q i) : ℝ)))) •
+        expSMulConj (A (Fin.last s))
+          (adPow (A (Fin.last s)) m (adSequence (fun i : Fin s => A i.castSucc) q B)) u := by
+  unfold commutatorRemainderTerm
+  have hL : ((List.ofFn (fun i : Fin (s + 1) => exp (τ • A i))).drop
+      ((Fin.last s : ℕ) + 1)) = [] := by
+    rw [Fin.val_last]
+    exact List.drop_eq_nil_of_le (by simp)
+  have hR : ((List.ofFn (fun i : Fin (s + 1) => exp (-τ • A i))).drop
+      ((Fin.last s : ℕ) + 1)) = [] := by
+    rw [Fin.val_last]
+    exact List.drop_eq_nil_of_le (by simp)
+  rw [hL, hR]
+  simp [Fin.snoc_last, Fin.snoc_castSucc, prefixRestrict_self, adSequence_snoc]
+
+/-- The single `j`-th Taylor remainder of the outermost conjugation, expanded over the
+`finAntidiagonal s j` fibers and matched against the outermost-layer `commutatorRemainderTerm`s. -/
+lemma expSMulConj_taylor_remainder_conjCoeff {s} {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
+    [CompleteSpace 𝔸] (A : Fin (s + 1) → 𝔸) (B : 𝔸) (p j : ℕ) (τ : ℝ) :
+    (∫ u in 0..τ, expSMulConj (A (Fin.last s))
+        (adPow (A (Fin.last s)) (p - j) (conjCoeff (fun i : Fin s => A i.castSucc) B j)) (τ - u) *
+        ((u ^ (p - j - 1) / (Nat.factorial (p - j - 1) : ℝ)) : 𝔸)) * (τ ^ j : 𝔸)
+      = ∑ q ∈ finAntidiagonal s j,
+          commutatorRemainderTerm A B τ (Fin.last s) (Fin.snoc q (p - j)) := by
+  let A' : 𝔸 := A (Fin.last s)
+  let A_inner : Fin s → 𝔸 := fun i => A i.castSucc
+  calc
+    (∫ u in 0..τ, expSMulConj A' (adPow A' (p - j) (conjCoeff A_inner B j)) (τ - u) *
+        ((u ^ (p - j - 1) / (Nat.factorial (p - j - 1) : ℝ)) : 𝔸)) * (τ ^ j : 𝔸)
+        = (∑ q ∈ finAntidiagonal s j, ((∏ i : Fin s, (Nat.factorial (q i) : ℝ))⁻¹ : ℝ) •
+            (∫ u in 0..τ, expSMulConj A' (adPow A' (p - j) (adSequence A_inner q B)) (τ - u) *
+              ((u ^ (p - j - 1) / (Nat.factorial (p - j - 1) : ℝ)) : 𝔸))) * (τ ^ j : 𝔸) := by
+              congr 1
+              have had : adPow A' (p - j) (conjCoeff A_inner B j) =
+                  ∑ q ∈ finAntidiagonal s j, ((∏ i : Fin s, (Nat.factorial (q i) : ℝ))⁻¹ : ℝ) •
+                    adPow A' (p - j) (adSequence A_inner q B) := by
+                rw [conjCoeff]
+                have h : adPow A' (p - j) (∑ q ∈ finAntidiagonal s j,
+                    ((∏ i : Fin s, (Nat.factorial (q i) : ℝ))⁻¹ : ℝ) • adSequence A_inner q B) =
+                    ∑ q ∈ finAntidiagonal s j, adPow A' (p - j)
+                      (((∏ i : Fin s, (Nat.factorial (q i) : ℝ))⁻¹ : ℝ) • adSequence A_inner q B) :=
+                  map_sum (adPowLin A' (p - j)).toAddMonoidHom
+                    (fun q =>
+                      ((∏ i : Fin s, (Nat.factorial (q i) : ℝ))⁻¹ : ℝ) • adSequence A_inner q B)
+                    (finAntidiagonal s j)
+                rw [h]
+                apply Finset.sum_congr rfl
+                intro q _
+                exact (adPowLin A' (p - j)).map_smul' ((∏ i : Fin s, (Nat.factorial (q i) : ℝ))⁻¹)
+                  (adSequence A_inner q B)
+              rw [had]
+              have hpoint : ∀ u : ℝ, expSMulConj A' (∑ q ∈ finAntidiagonal s j,
+                  ((∏ i : Fin s, (Nat.factorial (q i) : ℝ))⁻¹ : ℝ) •
+                    adPow A' (p - j) (adSequence A_inner q B)) (τ - u) *
+                  ((u ^ (p - j - 1) / (Nat.factorial (p - j - 1) : ℝ)) : 𝔸)
+                  = ∑ q ∈ finAntidiagonal s j, ((∏ i : Fin s, (Nat.factorial (q i) : ℝ))⁻¹ : ℝ) •
+                    (expSMulConj A' (adPow A' (p - j) (adSequence A_inner q B)) (τ - u) *
+                      ((u ^ (p - j - 1) / (Nat.factorial (p - j - 1) : ℝ)) : 𝔸)) := by
+                intro u
+                rw [expSMulConj_map_sum (A := A') (τ := τ - u) (s := finAntidiagonal s j)
+                  (f := fun q => ((∏ i : Fin s, (Nat.factorial (q i) : ℝ))⁻¹ : ℝ) •
+                    adPow A' (p - j) (adSequence A_inner q B))]
+                rw [Finset.sum_mul]
+                apply Finset.sum_congr rfl
+                intro q _
+                have hsmul : expSMulConj A' (((∏ i : Fin s, (Nat.factorial (q i) : ℝ))⁻¹ : ℝ) •
+                    (adPow A' (p - j) (adSequence A_inner q B))) (τ - u)
+                    = ((∏ i : Fin s, (Nat.factorial (q i) : ℝ))⁻¹ : ℝ) •
+                      expSMulConj A' (adPow A' (p - j) (adSequence A_inner q B)) (τ - u) :=
+                  (expSMulConjLin A' (τ - u)).map_smul' ((∏ i : Fin s, (Nat.factorial (q i) : ℝ))⁻¹)
+                    (adPow A' (p - j) (adSequence A_inner q B))
+                rw [hsmul]
+                rw [smul_mul_assoc]
+              rw [intervalIntegral.integral_congr_uIoo (fun u _ => hpoint u)]
+              have hint : ∀ q ∈ finAntidiagonal s j, IntervalIntegrable
+                  (fun u : ℝ => ((∏ i : Fin s, (Nat.factorial (q i) : ℝ))⁻¹ : ℝ) •
+                    (expSMulConj A' (adPow A' (p - j) (adSequence A_inner q B)) (τ - u) *
+                      ((u ^ (p - j - 1) / (Nat.factorial (p - j - 1) : ℝ)) : 𝔸))) volume 0 τ := by
+                intro q _
+                have hc : Continuous
+                  (fun u : ℝ => ((∏ i : Fin s, (Nat.factorial (q i) : ℝ))⁻¹ : ℝ) •
+                    (expSMulConj A' (adPow A' (p - j) (adSequence A_inner q B)) (τ - u) *
+                      ((u ^ (p - j - 1) / (Nat.factorial (p - j - 1) : ℝ)) : 𝔸))) := by
+                  refine Continuous.smul continuous_const ?_
+                  rw [show (fun u : ℝ =>
+                      expSMulConj A' (adPow A' (p - j) (adSequence A_inner q B)) (τ - u) *
+                        ((u ^ (p - j - 1) / (Nat.factorial (p - j - 1) : ℝ)) : 𝔸))
+                        = fun u : ℝ => (u ^ (p - j - 1) / (Nat.factorial (p - j - 1) : ℝ)) •
+                          expSMulConj A' (adPow A' (p - j) (adSequence A_inner q B)) (τ - u) by
+                    funext u
+                    rw [← smul_eq_mul_right]]
+                  refine Continuous.smul (by fun_prop) ?_
+                  exact (continuous_expSMulConj A' (adPow A' (p - j) (adSequence A_inner q B))).comp
+                    (continuous_const.sub continuous_id)
+                exact hc.intervalIntegrable 0 τ
+              rw [intervalIntegral.integral_finsetSum hint]
+              apply Finset.sum_congr rfl
+              intro q _
+              rw [intervalIntegral.integral_smul]
+    _ = ∑ q ∈ finAntidiagonal s j,
+          commutatorRemainderTerm A B τ (Fin.last s) (Fin.snoc q (p - j)) := by
+              rw [Finset.sum_mul]
+              apply Finset.sum_congr rfl
+              intro q hq
+              have hd : (∏ i : Fin s, (Nat.factorial (q i) : ℝ)) ≠ 0 := by positivity
+              have hsum : (∑ i : Fin s, q i) = j := mem_finAntidiagonal.mp hq
+              rw [expSMulConj_taylor_remainder_smul (A := A')
+                (X := adPow A' (p - j) (adSequence A_inner q B))
+                (k := p - j - 1) (j := j) (d := ∏ i : Fin s, (Nat.factorial (q i) : ℝ)) (τ := τ) hd]
+              rw [commutatorRemainderTerm_last A B τ q (p - j)]
+              rw [hsum]
+
+/-- Summing the single-layer Taylor remainders over `j < p` and reindexing by the antidiagonal
+fiber gives the outermost-layer part of `commutatorRemainder`. -/
+lemma taylor_remainder_sum {s} {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸]
+    (A : Fin (s + 1) → 𝔸) (B : 𝔸) (p : ℕ) (τ : ℝ) :
+    (∑ j ∈ range p,
+        (∫ u in 0..τ, expSMulConj (A (Fin.last s))
+          (adPow (A (Fin.last s)) (p - j) (conjCoeff (fun i : Fin s => A i.castSucc) B j)) (τ - u) *
+          ((u ^ (p - j - 1) / (Nat.factorial (p - j - 1) : ℝ)) : 𝔸)) * (τ ^ j : 𝔸))
+      = ∑ q ∈ (finAntidiagonal (s + 1) p).filter (fun q => q (Fin.last s) ≠ 0),
+          commutatorRemainderTerm A B τ (Fin.last s) q := by
+  calc
+    (∑ j ∈ range p,
+        (∫ u in 0..τ, expSMulConj (A (Fin.last s))
+          (adPow (A (Fin.last s)) (p - j) (conjCoeff (fun i : Fin s => A i.castSucc) B j)) (τ - u) *
+          ((u ^ (p - j - 1) / (Nat.factorial (p - j - 1) : ℝ)) : 𝔸)) * (τ ^ j : 𝔸))
+        = ∑ j ∈ range p, ∑ q ∈ finAntidiagonal s j,
+            commutatorRemainderTerm A B τ (Fin.last s) (Fin.snoc q (p - j)) := by
+              apply Finset.sum_congr rfl
+              intro j hj
+              exact expSMulConj_taylor_remainder_conjCoeff A B p j τ
+    _ = ∑ k ∈ range p, ∑ q ∈ finAntidiagonal s (p - (k + 1)),
+            commutatorRemainderTerm A B τ (Fin.last s) (Fin.snoc q (k + 1)) := by
+              exact sum_range_finAntidiagonal_reflect
+                (fun q' => commutatorRemainderTerm A B τ (Fin.last s) q')
+    _ = ∑ q ∈ (finAntidiagonal (s + 1) p).filter (fun q => q (Fin.last s) ≠ 0),
+          commutatorRemainderTerm A B τ (Fin.last s) q := by
+              exact (sum_finAntidiagonal_filter_last_ne_zero s p
+                (fun q => commutatorRemainderTerm A B τ (Fin.last s) q)).symm
+
+/-- The single-layer Taylor expansion of `expSMulConj A' (Σ_{j<p} C_j · τ^j) τ`, split into the
+reassembled polynomial `Σ_{m<p} conjCoeff A B m · τ^m` plus the outermost-layer remainder. -/
+lemma expSMulConj_taylor_poly {s} {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸]
+    (A : Fin (s + 1) → 𝔸) (B : 𝔸) (p : ℕ) (τ : ℝ) :
+    expSMulConj (A (Fin.last s))
+        (∑ j ∈ range p, conjCoeff (fun i : Fin s => A i.castSucc) B j * (τ ^ j : 𝔸)) τ
+      = (∑ m ∈ range p, conjCoeff A B m * (τ ^ m : 𝔸))
+        + ∑ q ∈ (finAntidiagonal (s + 1) p).filter (fun q => q (Fin.last s) ≠ 0),
+            commutatorRemainderTerm A B τ (Fin.last s) q := by
+  calc
+    expSMulConj (A (Fin.last s))
+      (∑ j ∈ range p, conjCoeff (fun i : Fin s => A i.castSucc) B j * (τ ^ j : 𝔸)) τ
+        = ∑ j ∈ range p, expSMulConj (A (Fin.last s))
+            (conjCoeff (fun i : Fin s => A i.castSucc) B j) τ * (τ ^ j : 𝔸) := by
+              rw [expSMulConj_map_sum]
+              apply Finset.sum_congr rfl
+              intro j _
+              rw [← map_pow (algebraMap ℝ 𝔸) τ j]
+              exact expSMulConj_mul_cast (A (Fin.last s))
+                (conjCoeff (fun i : Fin s => A i.castSucc) B j) (τ ^ j) τ
+    _ = ∑ j ∈ range p, ((∑ i ∈ range (p - j), (Nat.factorial i : ℝ)⁻¹ •
+              (adPow (A (Fin.last s)) i (conjCoeff (fun i : Fin s => A i.castSucc) B j)) *
+              (τ ^ i : 𝔸))
+            + ∫ u in 0..τ, expSMulConj (A (Fin.last s))
+                (adPow (A (Fin.last s)) (p - j) (conjCoeff (fun i : Fin s => A i.castSucc) B j))
+                  (τ - u) *
+                ((u ^ (p - j - 1) / (Nat.factorial (p - j - 1) : ℝ)) : 𝔸)) * (τ ^ j : 𝔸) := by
+              apply Finset.sum_congr rfl
+              intro j hj
+              have hpj : 1 ≤ p - j := Nat.succ_le_iff.mpr (Nat.sub_pos_of_lt (mem_range.mp hj))
+              rw [expSMulConj_taylor (A (Fin.last s))
+                (conjCoeff (fun i : Fin s => A i.castSucc) B j) (p - j) τ hpj]
+    _ = (∑ m ∈ range p, conjCoeff A B m * (τ ^ m : 𝔸))
+        + ∑ q ∈ (finAntidiagonal (s + 1) p).filter (fun q => q (Fin.last s) ≠ 0),
+            commutatorRemainderTerm A B τ (Fin.last s) q := by
+              simp_rw [add_mul, Finset.sum_add_distrib]
+              congr 1
+              · exact conjCoeff_sum_of_taylor A B p τ
+              · exact taylor_remainder_sum A B p τ
+
+/-- `thm:comm_exp_conj` (theory.tex:222-236): the multi-layer conjugation expands as
+`multiConj A B τ = Σ_{j < p} conjCoeff A B j · τ^j + commutatorRemainder A B p τ`,
+where the `conjCoeff A B j` are the operators `C_j` independent of `τ`. -/
+theorem commutatorExpansion_conj {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
+    [CompleteSpace 𝔸] {s : ℕ} (A : Fin s → 𝔸) (B : 𝔸) (p : ℕ) (τ : ℝ) (hp : 1 ≤ p) :
+    multiConj A B τ =
+      (∑ j ∈ Finset.range p, conjCoeff A B j * (τ ^ j : 𝔸)) + commutatorRemainder A B p τ := by
+  induction s with
+  | zero =>
+      have hmulti : multiConj A B τ = B := by simp [multiConj]
+      have hc0 : conjCoeff A B 0 = B := by
+        rw [conjCoeff]
+        rw [Finset.sum_eq_single_of_mem (s := finAntidiagonal 0 0) (a := 0)
+          (f := fun q => ((∏ i : Fin 0, (Nat.factorial (q i) : ℝ))⁻¹ : ℝ) • adSequence A q B)]
+        · simp [adSequence]
+        · rw [mem_finAntidiagonal]
+          simp
+        · intro b _ hb
+          exfalso
+          apply hb
+          exact Subsingleton.elim _ _
+      have hcj : ∀ j, 0 < j → conjCoeff A B j = 0 := by
+        intro j hj
+        rw [conjCoeff]
+        have hempty : finAntidiagonal 0 j = ∅ := by
+          ext q
+          rw [mem_finAntidiagonal]
+          rw [show (∑ i : Fin 0, q i) = 0 by simp]
+          constructor
+          · intro h
+            exact False.elim ((ne_of_gt hj) h.symm)
+          · intro h
+            simp at h
+        rw [hempty]
+        simp
+      have hrem : commutatorRemainder A B p τ = 0 := by simp [commutatorRemainder]
+      rw [hmulti, hrem, add_zero]
+      rw [Finset.sum_eq_single_of_mem (a := 0) (s := Finset.range p)
+        (f := fun j => conjCoeff A B j * (τ ^ j : 𝔸))]
+      · simp [hc0]
+      · rw [Finset.mem_range]
+        exact lt_of_lt_of_le zero_lt_one hp
+      · intro j _ hj0
+        rw [hcj j (Nat.pos_of_ne_zero hj0), zero_mul]
+  | succ s ih =>
+      rw [multiConj_succ A B τ]
+      rw [ih (fun i : Fin s => A i.castSucc)]
+      have hlin : expSMulConj (A (Fin.last s))
+          ((∑ j ∈ range p, conjCoeff (fun i : Fin s => A i.castSucc) B j * (τ ^ j : 𝔸)) +
+            commutatorRemainder (fun i : Fin s => A i.castSucc) B p τ) τ
+          = expSMulConj (A (Fin.last s))
+              (∑ j ∈ range p, conjCoeff (fun i : Fin s => A i.castSucc) B j * (τ ^ j : 𝔸)) τ +
+            expSMulConj (A (Fin.last s))
+              (commutatorRemainder (fun i : Fin s => A i.castSucc) B p τ) τ :=
+        (expSMulConjLin (A (Fin.last s)) τ).map_add' _ _
+      rw [hlin]
+      rw [expSMulConj_taylor_poly A B p τ]
+      rw [commutatorRemainder_succ A B p τ]
+      abel
 
 end TrotterError

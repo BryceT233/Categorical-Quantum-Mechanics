@@ -49,7 +49,7 @@ lemma prod_map_eq_take_mul_get_mul_drop {ι M : Type*} [BEq ι] [LawfulBEq ι] [
   have hidx : l.idxOf i < l.length := List.idxOf_lt_length_iff.mpr hi
   have hcons : i :: l.drop (l.idxOf i + 1) = l.drop (l.idxOf i) := by
     calc
-      i :: l.drop (l.idxOf i + 1) = l[l.idxOf i] :: l.drop (l.idxOf i + 1) := by
+      _ = l[l.idxOf i] :: l.drop (l.idxOf i + 1) := by
           rw [List.getElem_idxOf hidx]
       _ = l.drop (l.idxOf i) := List.cons_getElem_drop_succ (l := l) (n := l.idxOf i) (h := hidx)
   calc
@@ -67,33 +67,27 @@ lemma prod_map_eq_take_mul_get_mul_drop {ι M : Type*} [BEq ι] [LawfulBEq ι] [
 /-- If `g i` is a right inverse of `f i` for every `i`, then the product of `f` over `l` times the
 product of `g` over `l.reverse` is `1`. -/
 lemma prod_mul_rev_eq_one_of_mul_eq_one {ι M : Type*} [Monoid M] (l : List ι) (f g : ι → M)
-    (hfg : ∀ i, f i * g i = 1) :
-    (l.map f).prod * (l.reverse.map g).prod = 1 := by
+    (hfg : ∀ i, f i * g i = 1) : (l.map f).prod * (l.reverse.map g).prod = 1 := by
   induction l with
   | nil => simp
   | cons a l ih =>
       simp only [List.map_cons, List.prod_cons, List.reverse_cons, List.map_append,
         List.prod_append, List.map_nil, List.prod_nil, mul_one]
       calc
-        (f a * (l.map f).prod) * ((l.reverse.map g).prod * g a)
-            = f a * ((l.map f).prod * (l.reverse.map g).prod) * g a := by
-                simp only [mul_assoc]
+        _ = f a * ((l.map f).prod * (l.reverse.map g).prod) * g a := by simp only [mul_assoc]
         _ = 1 := by rw [ih, mul_one, hfg a]
 
 /-- If `g i` is a left inverse of `f i` for every `i`, then the product of `g` over `l.reverse`
 times the product of `f` over `l` is `1`. -/
 lemma rev_mul_prod_eq_one_of_mul_eq_one {ι M : Type*} [Monoid M] (l : List ι) (f g : ι → M)
-    (hgf : ∀ i, g i * f i = 1) :
-    (l.reverse.map g).prod * (l.map f).prod = 1 := by
+    (hgf : ∀ i, g i * f i = 1) : (l.reverse.map g).prod * (l.map f).prod = 1 := by
   induction l with
   | nil => simp
   | cons a l ih =>
       simp only [List.map_cons, List.prod_cons, List.reverse_cons, List.map_append,
         List.prod_append, List.map_nil, List.prod_nil, mul_one]
       calc
-        ((l.reverse.map g).prod * g a) * (f a * (l.map f).prod)
-            = (l.reverse.map g).prod * (g a * f a) * (l.map f).prod := by
-                simp only [mul_assoc]
+        _ = (l.reverse.map g).prod * (g a * f a) * (l.map f).prod := by simp only [mul_assoc]
         _ = 1 := by rw [hgf a, mul_one, ih]
 
 /-! ### Reindexing a sum by a nodup list -/
@@ -162,5 +156,33 @@ lemma hasDerivAt_list_prod {ι 𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra �
           (((a :: l).take (k : ℕ)).map (fun i => f i t)).prod * Df ((a :: l).get k) t *
             (((a :: l).drop ((k : ℕ) + 1)).map (fun i => f i t)).prod) t
       rwa [hsum]
+
+/-! ### Products of `List.ofFn` suffixes -/
+
+/-- Peeling the outermost entry off a dropped suffix of a `List.ofFn`: the reverse product of the
+suffix of `f : Fin (s+1) → 𝔸` is `f (Fin.last s)` times the reverse product of the corresponding
+suffix of the inner `Fin s` sequence. -/
+lemma ofFn_castSucc_drop_reverse_prod {s} {𝔸 : Type*} [Monoid 𝔸] (f : Fin (s + 1) → 𝔸) (k : ℕ)
+    (hk : k ≤ s) :
+    f (Fin.last s) * ((List.ofFn (fun i : Fin s => f i.castSucc)).drop k).reverse.prod
+      = ((List.ofFn f).drop k).reverse.prod := by
+  rw [List.ofFn_succ']
+  rw [List.concat_eq_append]
+  rw [List.drop_append_of_le_length (l₁ := List.ofFn (fun i : Fin s => f i.castSucc))
+    (l₂ := [f (Fin.last s)]) (by simpa using hk)]
+  rw [List.reverse_concat', List.prod_cons]
+
+/-- Peeling the outermost entry off a dropped suffix of a `List.ofFn` (no reversal): the product of
+the suffix of `f : Fin (s+1) → 𝔸` is the product of the inner `Fin s` suffix times
+`f (Fin.last s)`. -/
+lemma ofFn_castSucc_drop_prod {s} {𝔸 : Type*} [Monoid 𝔸] (f : Fin (s + 1) → 𝔸) (k : ℕ)
+    (hk : k ≤ s) :
+    ((List.ofFn (fun i : Fin s => f i.castSucc)).drop k).prod * f (Fin.last s)
+      = ((List.ofFn f).drop k).prod := by
+  rw [List.ofFn_succ']
+  rw [List.concat_eq_append]
+  rw [List.drop_append_of_le_length (l₁ := List.ofFn (fun i : Fin s => f i.castSucc))
+    (l₂ := [f (Fin.last s)]) (by simpa using hk)]
+  rw [List.prod_append, List.prod_singleton]
 
 end TrotterError
