@@ -15,6 +15,14 @@ Generic interval-integral identities over `ℝ` used across the Trotter error th
 (arXiv:1912.08854): beta-type integrals, the substituted Taylor remainder integral, and the
 FTC identity `∫₀¹ (1-u)^p = 1/(p+1)`.
 
+## Main results
+
+* `integral_abs_sub_pow_uIoc`: `∫ u in uIoc 0 τ, |τ - u|^(q-1) = |τ|^q / q`.
+* `integral_abs_pow_sub_div_factorial_uIoc`, `abs_integral_abs_pow_div_factorial`:
+  `|∫₀^τ |s|^(p-1)/(p-1)!| = |τ|^p/p!`.
+* `integral_smul_eq_integral_mul_sub`: the substituted Taylor remainder integral identity.
+* `intervalIntegral_one_sub_pow`: `∫₀¹ (1-u)^p = 1/(p+1)`.
+
 **Assisted by Deepseek Harness**
 -/
 

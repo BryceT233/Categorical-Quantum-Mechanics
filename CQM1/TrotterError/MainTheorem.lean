@@ -5,25 +5,25 @@ Authors: Foresight Quantum
 -/
 module
 
-public import CQM1.TrotterError.Commutator
-public import CQM1.TrotterError.ProductFormula
+public import CQM1.TrotterError.OneNormScaling
+public import CQM1.TrotterError.OrderingRemoval
+public import CQM1.TrotterError.CommutatorScaling
+
+import CQM1.TrotterError.ListProd
 
 /-!
-# Main theorem: ordering-removal lemma
+# Main theorem: commutator scaling of Trotter error
 
-This file proves the "ordering removal" step of the main theorem of *A Theory of Trotter
-Error* (arXiv:1912.08854), `papers/rep.tex` lines 129–139.
+The main theorems of *A Theory of Trotter Error* (arXiv:1912.08854): the norm bound for the
+additive kernel `𝒯(τ)` and the commuting-scaling bounds for the Trotter error
+`thm:trotter_error_comm_scaling` together with the Trotter-number corollary
+`cor:trotter_number_comm_scaling` (anti-Hermitian branch).
 
-The paper's `α_comm` quantity is the multinomial-weighted sum over all multiplicities
-`q : Fin (Υ·Γ) → ℕ` with `Σ q = p` of the norms of the iterated `ad` operators
-`ad_{H_{π_1(1)}}^{q_(1,1)} ⋯ ad_{H_{π_Υ(Γ)}}^{q_(Υ,Γ)}(H_γ)`. The main lemma bounds the sum
-over the innermost summand `H_γ` of this quantity by `p! · Υ^p · α~_comm`, where `α~_comm`
-is the sum over all nested commutators `‖[H_{γ_{p+1}}, ⋯ [H_{γ_2}, H_γ]]‖`.
-
-The two ingredients are: (1) each multinomial coefficient `(p choose q)` is at most `p!`;
-(2) each nested commutator `[H_{γ_{p+1}}, ⋯ [H_{γ_2}, H_γ]]` arises from at most `Υ^p`
-different multiplicity vectors `q` (each of the `p` outer operators can sit in any of the `Υ`
-stages, and the stage then determines the position and multiplicity).
+Supporting steps live in dedicated files:
+* `OrderingRemoval.lean` — `αCommConj_sum_le_αComm` (`papers/rep.tex` lines 129–139).
+* `CommutatorScaling.lean` — the `additiveKernel = Σ multiConj − multiConj` bridge and the
+  order-condition cancellation `additiveKernel_eq_commutatorRemainder_sum`
+  (`papers/theory.tex` lines 251–266).
 
 **Assisted by Deepseek Harness**
 -/
@@ -32,415 +32,703 @@ stages, and the stage then determines the position and multiplicity).
 
 namespace TrotterError
 
-/-! ### The ordered list of permuted summands -/
+open NormedSpace Asymptotics Finset
+open TrotterError.List
+open scoped Topology BigOperators algebraMap
 
-/-- The product formula's permuted summands `H_{π_υ(γ)}`, as a `Fin (Υ * Γ)`-indexed list in
-`evalIndexList` order (the paper's `\overrightarrow{\{H_{π_υ(γ)}\}}`). The index
-`i = υ * Γ + γ` carries the summand `H_{π_υ(γ)}`; `i.divNat` is the stage and `i.modNat` the
-summand index within the stage. -/
-noncomputable def orderedSummands (P : ProductFormulaData) {𝔸 : Type*} (H : Fin P.Γ → 𝔸) :
-    Fin (P.Υ * P.Γ) → 𝔸 :=
-  fun i => H (P.perm (i.divNat) (i.modNat))
+/-! ### R3: the skew-adjoint norm bound -/
 
-/-! ### Multinomial coefficients are bounded by `p!` -/
-
-/-- Every multinomial coefficient is at most the factorial of the total degree: the multinomial
-`Nat.multinomial s f` divides `(∑ f)!` (via `Nat.multinomial_spec`), and the complementary product
-of factorials is `≥ 1`. -/
-lemma multinomial_le_factorial {α : Type*} (s : Finset α) (f : α → ℕ) :
-    Nat.multinomial s f ≤ Nat.factorial (∑ i ∈ s, f i) := by
-  have hspec := Nat.multinomial_spec s f
-  have hprod : 1 ≤ ∏ i ∈ s, (f i).factorial := Finset.one_le_prod (fun i _ => Nat.factorial_pos _)
+/-- Shared skeleton of the additive-kernel norm bound (`thm:trotter_error_order_cond`): from
+per-remainder bounds `‖remᵢ(−τ)‖ ≤ αᵢ · C` and `‖rem_all(−τ)‖ ≤ α_all · C` with `0 ≤ C`, and the
+coefficient bound `Σᵢ αᵢ + α_all ≤ 2 Υ Σ_γ α_γ`, conclude
+`‖additiveKernel P H τ‖ ≤ 2 Υ (Σ_γ α_γ) · C`. -/
+lemma norm_additiveKernel_le_of_rem_bound (P : ProductFormulaData) {𝔸 : Type*}
+    [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [NormOneClass 𝔸] [CompleteSpace 𝔸]
+    (H : Fin P.Γ → 𝔸) (p : ℕ) (hp : 1 ≤ p) (h_order : P.IsOrderOf p H) (τ : ℝ) (C : ℝ)
+    (hC : 0 ≤ C)
+    (hrem_i : ∀ i : Fin P.Υ × Fin P.Γ,
+      ‖commutatorRemainder (suffixGenerators P H i) (P.generator H i) p (-τ)‖ ≤
+        αCommConj (suffixGenerators P H i) (P.generator H i) p * C)
+    (hrem_all : ‖commutatorRemainder (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p (-τ)‖ ≤
+        αCommConj (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p * C)
+    (hcoeff : (∑ i : Fin P.Υ × Fin P.Γ, αCommConj (suffixGenerators P H i) (P.generator H i) p)
+        + αCommConj (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p
+        ≤ 2 * (P.Υ : ℝ) * (∑ γ : Fin P.Γ, αCommConj (orderedSummandsEval P H) (H γ) p)) :
+    ‖additiveKernel P H τ‖ ≤
+      2 * (P.Υ : ℝ) * (∑ γ : Fin P.Γ, αCommConj (orderedSummandsEval P H) (H γ) p) * C := by
+  have hR2 := additiveKernel_eq_commutatorRemainder_sum P H p hp h_order τ
   calc
-    Nat.multinomial s f = Nat.multinomial s f * 1 := by rw [mul_one]
-    _ ≤ Nat.multinomial s f * (∏ i ∈ s, (f i).factorial) := Nat.mul_le_mul_left _ hprod
-    _ = (∏ i ∈ s, (f i).factorial) * Nat.multinomial s f := by rw [mul_comm]
-    _ = (∑ i ∈ s, f i).factorial := hspec
+    ‖additiveKernel P H τ‖
+        = ‖(∑ i : Fin P.Υ × Fin P.Γ,
+              commutatorRemainder (suffixGenerators P H i) (P.generator H i) p (-τ))
+            - commutatorRemainder (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p (-τ)‖ := by
+              rw [hR2]
+    _ ≤ ‖∑ i : Fin P.Υ × Fin P.Γ,
+            commutatorRemainder (suffixGenerators P H i) (P.generator H i) p (-τ)‖
+          + ‖commutatorRemainder (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p (-τ)‖ :=
+              norm_sub_le _ _
+    _ ≤ (∑ i : Fin P.Υ × Fin P.Γ,
+            ‖commutatorRemainder (suffixGenerators P H i) (P.generator H i) p (-τ)‖)
+          + ‖commutatorRemainder (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p (-τ)‖ := by
+              gcongr
+              exact norm_sum_le univ
+                (fun i => commutatorRemainder (suffixGenerators P H i) (P.generator H i) p (-τ))
+    _ ≤ (∑ i : Fin P.Υ × Fin P.Γ,
+            αCommConj (suffixGenerators P H i) (P.generator H i) p * C)
+          + αCommConj (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p * C := by
+              refine add_le_add (sum_le_sum (fun i _ => hrem_i i)) hrem_all
+    _ = ((∑ i : Fin P.Υ × Fin P.Γ, αCommConj (suffixGenerators P H i) (P.generator H i) p)
+          + αCommConj (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p) * C := by
+              rw [← sum_mul, ← add_mul]
+    _ ≤ (2 * (P.Υ : ℝ) * (∑ γ : Fin P.Γ, αCommConj (orderedSummandsEval P H) (H γ) p)) * C :=
+              mul_le_mul_of_nonneg_right hcoeff hC
+    _ = 2 * (P.Υ : ℝ) * (∑ γ : Fin P.Γ, αCommConj (orderedSummandsEval P H) (H γ) p) * C := by ring
 
-/-! ### The list of layer indices -/
+/-- `thm:trotter_error_order_cond` (anti-Hermitian branch): the spectral norm of the additive
+kernel is bounded by `2 Υ (Σ_γ α_comm) |τ|^p / p!`. -/
+theorem norm_additiveKernel_le_of_skewAdjoint (P : ProductFormulaData) {𝔸 : Type*}
+    [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [NormOneClass 𝔸]
+    [StarRing 𝔸] [CStarRing 𝔸] [Nontrivial 𝔸] [StarModule ℝ 𝔸] (H : Fin P.Γ → 𝔸)
+    (h_skew : ∀ γ, star (H γ) = -(H γ)) (p : ℕ) (hp : 1 ≤ p) (h_order : P.IsOrderOf p H)
+    (hΥ : 0 < P.Υ) (τ : ℝ) :
+    ‖additiveKernel P H τ‖ ≤
+      2 * (P.Υ : ℝ) * (∑ γ, αCommConj (orderedSummandsEval P H) (H γ) p) *
+        |τ| ^ p / (Nat.factorial p : ℝ) := by
+  have h_skew_suffix : ∀ i k, star (suffixGenerators P H i k) = -(suffixGenerators P H i k) := by
+    intro i k
+    exact star_generator_of_skew P H h_skew
+      ((P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)).get k)
+  have h_skew_ordered : ∀ k, star (orderedGenerators P H k) = -(orderedGenerators P H k) := by
+    intro k
+    exact star_generator_of_skew P H h_skew (P.evalIndexList.get k)
+  have hrem_i : ∀ i : Fin P.Υ × Fin P.Γ,
+      ‖commutatorRemainder (suffixGenerators P H i) (P.generator H i) p (-τ)‖ ≤
+        αCommConj (suffixGenerators P H i) (P.generator H i) p *
+          (|τ| ^ p / (Nat.factorial p : ℝ)) := by
+    intro i
+    simpa [abs_neg, div_eq_mul_inv, mul_assoc] using
+      norm_commutatorRemainder_le_of_skewAdjoint (suffixGenerators P H i) (P.generator H i) p
+        (-τ) (h_skew_suffix i)
+  have hrem_all : ‖commutatorRemainder (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p (-τ)‖ ≤
+      αCommConj (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p *
+        (|τ| ^ p / (Nat.factorial p : ℝ)) := by
+    simpa [abs_neg, div_eq_mul_inv, mul_assoc] using
+      norm_commutatorRemainder_le_of_skewAdjoint (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p
+        (-τ) h_skew_ordered
+  simpa [div_eq_mul_inv, mul_assoc] using
+    norm_additiveKernel_le_of_rem_bound P H p hp h_order τ (|τ| ^ p / (Nat.factorial p : ℝ))
+      (by positivity) hrem_i hrem_all (sum_αCommConj_suffix_add_ordered_le P H p hΥ)
 
-/-- The list of the non-innermost operators of `expandTuple f q b`, each `f i` repeated `q i`
-times, in increasing order of `i`. -/
-def layersOf {s : ℕ} (f : Fin s → α) (q : Fin s → ℕ) : List α :=
-  (List.finRange s).flatMap fun i => List.replicate (q i) (f i)
+/-! ### R3g: the general-operator norm bound -/
 
-/-- `layersOf f q` has length `∑ q`. -/
-lemma layersOf_length {s : ℕ} (f : Fin s → α) (q : Fin s → ℕ) :
-    (layersOf f q).length = ∑ i : Fin s, q i := by
-  induction s with
-  | zero => simp [layersOf]
-  | succ s ih =>
-      rw [layersOf, List.finRange_succ]
-      simp only [List.flatMap_cons, List.flatMap_map, List.length_append, List.length_replicate]
-      change q 0 + (layersOf (f ∘ Fin.succ) (q ∘ Fin.succ)).length = ∑ i : Fin (s + 1), q i
-      rw [ih (f ∘ Fin.succ) (q ∘ Fin.succ)]
-      rw [Fin.sum_univ_succ]
-      rfl
+/-- `thm:trotter_error_comm_scaling` (general branch): the spectral norm of the additive kernel is
+bounded by `2 Υ (Σ_γ α_comm) |τ|^p / p! · exp(2|τ| Υ Σ ‖H_γ‖)`. -/
+theorem norm_additiveKernel_le (P : ProductFormulaData) {𝔸 : Type*}
+    [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [NormOneClass 𝔸]
+    (H : Fin P.Γ → 𝔸) (p : ℕ) (hp : 1 ≤ p) (h_order : P.IsOrderOf p H) (hΥ : 0 < P.Υ) (τ : ℝ) :
+    ‖additiveKernel P H τ‖ ≤
+      2 * (P.Υ : ℝ) * (∑ γ : Fin P.Γ, αCommConj (orderedSummandsEval P H) (H γ) p) *
+        |τ| ^ p / (Nat.factorial p : ℝ) *
+          Real.exp (2 * |τ| * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) := by
+  let N : ℝ := (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖
+  let C : ℝ := |τ| ^ p / (Nat.factorial p : ℝ) * Real.exp (2 * |τ| * N)
+  have hrem_i : ∀ i : Fin P.Υ × Fin P.Γ,
+      ‖commutatorRemainder (suffixGenerators P H i) (P.generator H i) p (-τ)‖ ≤
+        αCommConj (suffixGenerators P H i) (P.generator H i) p * C := by
+    intro i
+    have hsum : (∑ k : Fin (P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)).length,
+        ‖suffixGenerators P H i k‖) ≤ N := by
+      dsimp [N]
+      exact sum_norm_suffixGenerators_le P H i
+    have hexp : Real.exp (2 * |τ| *
+        ∑ k : Fin (P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)).length,
+          ‖suffixGenerators P H i k‖) ≤ Real.exp (2 * |τ| * N) :=
+      Real.exp_le_exp.mpr (mul_le_mul_of_nonneg_left hsum (by positivity))
+    calc
+      ‖commutatorRemainder (suffixGenerators P H i) (P.generator H i) p (-τ)‖
+          ≤ αCommConj (suffixGenerators P H i) (P.generator H i) p * |τ| ^ p /
+              (Nat.factorial p : ℝ) * Real.exp (2 * |τ| *
+                ∑ k : Fin (P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)).length,
+                  ‖suffixGenerators P H i k‖) := by
+              simpa [abs_neg] using
+                norm_commutatorRemainder_le (suffixGenerators P H i) (P.generator H i) p (-τ)
+      _ ≤ αCommConj (suffixGenerators P H i) (P.generator H i) p * |τ| ^ p /
+              (Nat.factorial p : ℝ) * Real.exp (2 * |τ| * N) := by
+              exact mul_le_mul_of_nonneg_left hexp
+                (div_nonneg (mul_nonneg
+                  (αCommConj_nonneg (suffixGenerators P H i) (P.generator H i) p)
+                  (pow_nonneg (abs_nonneg τ) p)) (Nat.cast_nonneg _))
+      _ = αCommConj (suffixGenerators P H i) (P.generator H i) p * C := by
+              dsimp [C]
+              ring_nf
+  have hrem_all : ‖commutatorRemainder (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p (-τ)‖ ≤
+      αCommConj (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p * C := by
+    have hsum : (∑ k : Fin P.evalIndexList.length, ‖orderedGenerators P H k‖) ≤ N := by
+      dsimp [N]
+      exact sum_norm_orderedGenerators_le P H
+    have hexp : Real.exp (2 * |τ| * ∑ k : Fin P.evalIndexList.length, ‖orderedGenerators P H k‖) ≤
+        Real.exp (2 * |τ| * N) :=
+      Real.exp_le_exp.mpr (mul_le_mul_of_nonneg_left hsum (by positivity))
+    calc
+      ‖commutatorRemainder (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p (-τ)‖
+          ≤ αCommConj (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p * |τ| ^ p /
+              (Nat.factorial p : ℝ) * Real.exp (2 * |τ| *
+                ∑ k : Fin P.evalIndexList.length, ‖orderedGenerators P H k‖) := by
+              simpa [abs_neg] using
+                norm_commutatorRemainder_le (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p (-τ)
+      _ ≤ αCommConj (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p * |τ| ^ p /
+              (Nat.factorial p : ℝ) * Real.exp (2 * |τ| * N) := mul_le_mul_of_nonneg_left hexp
+                (div_nonneg (mul_nonneg
+                  (αCommConj_nonneg (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p)
+                  (pow_nonneg (abs_nonneg τ) p)) (Nat.cast_nonneg _))
+      _ = αCommConj (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p * C := by
+              dsimp [C]
+              ring_nf
+  have hC : 0 ≤ C := by positivity
+  simpa [C, N, div_eq_mul_inv, mul_assoc] using
+    norm_additiveKernel_le_of_rem_bound P H p hp h_order τ C hC hrem_i hrem_all
+      (sum_αCommConj_suffix_add_ordered_le P H p hΥ)
 
-/-- `layersOf` commutes with post-composition. -/
-lemma layersOf_map {α β : Type*} {s : ℕ} (g : α → β) (f : Fin s → α) (q : Fin s → ℕ) :
-    layersOf (g ∘ f) q = (layersOf f q).map g := by
-  rw [layersOf, layersOf]
-  rw [List.map_flatMap]
-  apply List.flatMap_congr
-  intro i _
-  rw [List.map_replicate]
-  rfl
+/-! ### R3g-residual: the telescoped residual bound -/
 
-/-- The list of indices, each `i : Fin s` repeated `q i` times. -/
-def layerIndices {s : ℕ} (q : Fin s → ℕ) : List (Fin s) := layersOf (fun i : Fin s => i) q
-
-/-- The index `i` occurs exactly `q i` times in `layerIndices q`. -/
-lemma layersOf_count {s : ℕ} (q : Fin s → ℕ) (i : Fin s) :
-    (layersOf (fun i : Fin s => i) q).count i = q i := by
-  induction s with
-  | zero => exact Fin.elim0 i
-  | succ s ih =>
-      rw [layersOf, List.finRange_succ_last]
-      simp only [List.flatMap_append, List.flatMap_map, List.flatMap_singleton]
-      rw [List.count_append]
-      refine Fin.lastCases ?_ ?_ i
-      · change List.count (Fin.last s)
-            (layersOf (Fin.castSucc ∘ (fun i : Fin s => i)) (q ∘ Fin.castSucc)) +
-              List.count (Fin.last s) (List.replicate (q (Fin.last s)) (Fin.last s)) =
-            q (Fin.last s)
-        rw [layersOf_map Fin.castSucc (fun i : Fin s => i) (q ∘ Fin.castSucc)]
-        have hmem : Fin.last s ∉
-            (layersOf (fun i : Fin s => i) (q ∘ Fin.castSucc)).map Fin.castSucc := by
-          intro h
-          rw [List.mem_map] at h
-          rcases h with ⟨x, -, hx⟩
-          exact (Fin.castSucc_lt_last x).ne hx
-        rw [List.count_eq_zero_of_not_mem hmem]
-        rw [List.count_replicate]
-        simp
-      · intro j
-        change List.count j.castSucc
-            (layersOf (Fin.castSucc ∘ (fun i : Fin s => i)) (q ∘ Fin.castSucc)) +
-              List.count j.castSucc (List.replicate (q (Fin.last s)) (Fin.last s)) =
-            q j.castSucc
-        rw [layersOf_map Fin.castSucc (fun i : Fin s => i) (q ∘ Fin.castSucc)]
-        rw [List.count_map_of_injective _ Fin.castSucc (Fin.castSucc_injective s) j]
-        rw [ih (q ∘ Fin.castSucc) j]
-        have hne : Fin.last s ≠ j.castSucc := (Fin.castSucc_lt_last j).ne'
-        rw [List.count_replicate]
-        simp [hne]
-
-/-! ### Expanding a multiplicity vector into a tuple -/
-
-/-- Expand a multiplicity vector `q : Fin s → ℕ` into a tuple of length `∑ q + 1`: the entry at
-position `0` is `b`, and the entries at positions `1` through `∑ q` are the layer operators
-`f i`, each repeated `q i` times. -/
-def expandTuple {s : ℕ} (f : Fin s → α) (q : Fin s → ℕ) (b : α) :
-    Fin (∑ i : Fin s, q i + 1) → α :=
-  Fin.cons b (fun t : Fin (∑ i : Fin s, q i) =>
-    f ((layerIndices q)[t.val]'(by simp [layerIndices, layersOf_length])))
-
-/-- The entry at position `0` of `expandTuple` is the innermost `b`. -/
-lemma expandTuple_zero {α : Type*} {s : ℕ} (f : Fin s → α) (q : Fin s → ℕ) (b : α) :
-    expandTuple f q b 0 = b := by
-  simp [expandTuple]
-
-/-- The entry at position `t + 1` of `expandTuple f q b` is `f` applied to the `t`-th layer
-index. -/
-lemma expandTuple_succ {α : Type*} {s : ℕ} (f : Fin s → α) (q : Fin s → ℕ) (b : α) (t : ℕ)
-    (ht : t < ∑ i : Fin s, q i) :
-    expandTuple f q b ⟨t + 1, Nat.succ_lt_succ ht⟩ =
-      f ((layersOf (fun i : Fin s => i) q)[t]'(by simpa [layersOf_length] using ht)) := by
-  rw [expandTuple]
-  rw [show (⟨t + 1, Nat.succ_lt_succ ht⟩ : Fin ((∑ i : Fin s, q i) + 1)) =
-      Fin.succ (⟨t, ht⟩ : Fin (∑ i : Fin s, q i)) by rfl]
-  rw [Fin.cons_succ]
-  rfl
-
-/-- `expandTuple` is natural in the target:
-`expandTuple (g ∘ f) q (g b) = g ∘ expandTuple f q b`. -/
-lemma expandTuple_nat {α β : Type*} {s : ℕ} (g : α → β) (f : Fin s → α) (q : Fin s → ℕ) (b : α) :
-    expandTuple (g ∘ f) q (g b) = g ∘ expandTuple f q b := by
-  funext j
-  refine Fin.cases ?zero ?succ j
-  · simp [Function.comp_apply, expandTuple_zero]
-  · intro t
-    change expandTuple (g ∘ f) q (g b) ⟨t.val + 1, by exact Nat.succ_lt_succ t.isLt⟩ =
-      g (expandTuple f q b ⟨t.val + 1, by exact Nat.succ_lt_succ t.isLt⟩)
-    rw [expandTuple_succ (g ∘ f) q (g b) t.val t.isLt]
-    rw [expandTuple_succ f q b t.val t.isLt]
-    rfl
-
-/-- `adSequence A q B` equals the list nested commutator of the layers. -/
-lemma adSequence_eq_nestedCommOfList {𝔸 : Type*} [Ring 𝔸] {s : ℕ} (A : Fin s → 𝔸)
-    (q : Fin s → ℕ) (B : 𝔸) :
-    adSequence A q B = nestedCommOfList B (layersOf A q) := by
-  induction s with
-  | zero => simp [adSequence, layersOf]
-  | succ s ih =>
-      rw [adSequence]
-      rw [ih (fun i : Fin s => A i.castSucc) (fun i : Fin s => q i.castSucc)]
-      have hlayers : layersOf A q = layersOf (fun i : Fin s => A i.castSucc)
-          (fun i : Fin s => q i.castSucc) ++
-          List.replicate (q (Fin.last s)) (A (Fin.last s)) := by
-        simp [layersOf, List.finRange_succ_last, List.flatMap_append, List.flatMap_map]
-      rw [hlayers, nestedCommOfList_append_replicate]
-
-/-- `adSequence A q B` is exactly the nested commutator of the expanded tuple. -/
-lemma adSequence_eq_nestedComm_expandTuple {𝔸 : Type*} [Ring 𝔸] {s : ℕ} (A : Fin s → 𝔸)
-    (q : Fin s → ℕ) (B : 𝔸) :
-    adSequence A q B = nestedComm (expandTuple A q B) := by
-  rw [adSequence_eq_nestedCommOfList A q B]
-  rw [show layersOf A q = (layerIndices q).map A by
-    rw [layerIndices]
-    exact layersOf_map A (fun i : Fin s => i) q]
-  rw [← nestedComm_listIndexed B (layerIndices q) A]
-  rw [show expandTuple A q B =
-      listIndexed B (layerIndices q) A ∘ Fin.cast (congrArg (· + 1)
-        (show (∑ i : Fin s, q i) = (layerIndices q).length by
-          rw [layerIndices, layersOf_length])) by
-    ext j
-    refine Fin.cases ?zero ?succ j
-    · simp [expandTuple, listIndexed, Fin.cons_zero]
-    · intro t
-      simp [expandTuple, listIndexed, Fin.cons_succ, Fin.cast_succ_eq, Fin.val_cast]]
-  rw [nestedComm_cast (show (∑ i : Fin s, q i) = (layerIndices q).length by
-    rw [layerIndices, layersOf_length]) (listIndexed B (layerIndices q) A)]
-
-/-! ### The tuple of summand indices of the product formula -/
-
-/-- The antidiagonal of multiplicity vectors with total degree `p`. -/
-abbrev Antidiag (s p : ℕ) : Type := {q : Fin s → ℕ // q ∈ Finset.finAntidiagonal s p}
-
-/-- The `j`-th non-innermost layer index of a multiplicity vector on the antidiagonal. -/
-noncomputable def layerAt (P : ProductFormulaData) (p : ℕ)
-    (q : Antidiag (P.Υ * P.Γ) p) (j : Fin p) : Fin (P.Υ * P.Γ) :=
-  (layerIndices q.1)[j.val]'(by
-    simp [layerIndices, layersOf_length, Finset.mem_finAntidiagonal.mp q.2])
-
-/-- The stage of the `j`-th non-innermost layer. -/
-noncomputable def stageOf (P : ProductFormulaData) (p : ℕ)
-    (q : Antidiag (P.Υ * P.Γ) p) (j : Fin p) : Fin P.Υ :=
-  (layerAt P p q j).divNat
-
-/-- The tuple `Fin (p + 1) → Fin Γ` realizing `adSequence (orderedSummands P H) q (H γ)` as
-`nestedComm (H ∘ ·)`: entry `0` is `γ` (the innermost `H_γ`), and entry `j + 1` is
-`π_υ(γ')` where `(υ, γ')` is the stage/summand of the `j`-th layer. -/
-noncomputable def orderedLayers (P : ProductFormulaData) (γ : Fin P.Γ) (p : ℕ)
-    (q : Antidiag (P.Υ * P.Γ) p) : Fin (p + 1) → Fin P.Γ :=
-  (expandTuple (fun i : Fin (P.Υ * P.Γ) => P.perm (i.divNat) (i.modNat)) q.1 γ) ∘
-    Fin.cast (congrArg (· + 1) (Finset.mem_finAntidiagonal.mp q.2).symm)
-
-/-- The `(j + 1)`-st entry of `orderedLayers` is the permuted summand of the `j`-th layer. -/
-lemma orderedLayers_succ (P : ProductFormulaData) (γ : Fin P.Γ) (p : ℕ)
-    (q : Antidiag (P.Υ * P.Γ) p) (j : Fin p) :
-    orderedLayers P γ p q j.succ =
-      P.perm (stageOf P p q j) ((layerAt P p q j).modNat) := by
-  rw [orderedLayers]
-  simp only [Function.comp_apply]
-  have hq : (∑ i : Fin (P.Υ * P.Γ), q.1 i) = p := Finset.mem_finAntidiagonal.mp q.2
-  have ht : j.val < ∑ i : Fin (P.Υ * P.Γ), q.1 i := by
-    simp [hq]
-  rw [show Fin.cast (congrArg (· + 1) hq.symm) j.succ = ⟨j.val + 1, Nat.succ_lt_succ ht⟩ from by
-    apply Fin.ext
-    simp [Fin.val_cast, Fin.val_succ]]
-  rw [expandTuple_succ (fun i : Fin (P.Υ * P.Γ) => P.perm (i.divNat) (i.modNat)) q.1 γ j.val ht]
-  simp [layerAt, stageOf, layerIndices]
-
-/-- The entry at position `0` of `orderedLayers` is the innermost summand `γ`. -/
-lemma orderedLayers_zero (P : ProductFormulaData) (γ : Fin P.Γ) (p : ℕ)
-    (q : Antidiag (P.Υ * P.Γ) p) :
-    orderedLayers P γ p q 0 = γ := by
-  rw [orderedLayers]
-  simp only [Function.comp_apply]
-  rw [show Fin.cast (congrArg (· + 1) (Finset.mem_finAntidiagonal.mp q.2).symm)
-      (0 : Fin (p + 1)) = (0 : Fin (∑ i : Fin (P.Υ * P.Γ), q.1 i + 1)) by
-    apply Fin.ext
-    simp]
-  rw [expandTuple_zero]
-
-/-- `adSequence (orderedSummands P H) q (H γ)` equals the nested commutator of `H` along the
-tuple `orderedLayers`. -/
-lemma adSequence_orderedSummands_eq_nestedComm (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
-    (H : Fin P.Γ → 𝔸) (γ : Fin P.Γ) (p : ℕ) (q : Antidiag (P.Υ * P.Γ) p) :
-    adSequence (orderedSummands P H) q.1 (H γ) = nestedComm (H ∘ orderedLayers P γ p q) := by
+/-- The single suffix-remainder summand, scaled by `P.eval H τ`, telescopes to a single exponential
+`exp (|τ| · Υ · Σ ‖H γ‖)` (rep.tex:50–113). -/
+lemma norm_eval_mul_commutatorRemainderTerm_le (P : ProductFormulaData) {𝔸 : Type*}
+    [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [NormOneClass 𝔸]
+    (H : Fin P.Γ → 𝔸) (i : Fin P.Υ × Fin P.Γ) (p : ℕ)
+    (j : Fin (P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)).length)
+    (q : Fin (j + 1) → ℕ) (τ : ℝ) (hτ : 0 ≤ τ)
+    (hq : q ∈ finAntidiagonal (j + 1) p) (hlast : q (Fin.last j) ≠ 0) :
+    ‖P.eval H τ * commutatorRemainderTerm (suffixGenerators P H i) (P.generator H i) (-τ) j q‖ ≤
+      ‖adSequence (suffixGenerators P H i ∘ Fin.castLE (Nat.succ_le_of_lt j.2)) q
+          (P.generator H i)‖ *
+        (Nat.multinomial (univ : Finset (Fin (j + 1))) q : ℝ) * |τ| ^ p / (Nat.factorial p : ℝ) *
+        Real.exp (|τ| * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) := by
+  let Cprefix : ℝ := ((P.evalIndexList.take (P.evalIndexList.idxOf i)).map
+    (fun j => ‖H (P.perm j.1 j.2)‖)).sum + ‖H (P.perm i.1 i.2)‖
+  have hL : ‖prefixFactorProd P H i τ * P.evalFactor H i τ‖ ≤ Real.exp (|τ| * Cprefix) := by
+    dsimp [Cprefix]
+    exact norm_prefixFactorProd_mul_evalFactor_le P H i τ
+  have hstrict : strictSuffixFactorProd P H i τ =
+      (List.ofFn (fun k : Fin (P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)).length =>
+        exp (τ • suffixGenerators P H i k))).prod := by
+    dsimp [strictSuffixFactorProd, factorProdOver, suffixGenerators]
+    congr 1
+    change (P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)).map (fun j => P.evalFactor H j τ) =
+      List.ofFn (fun k : Fin (P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)).length =>
+        exp (τ • P.generator H ((P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)).get k)))
+    rw [← List.ofFn_get (P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)), List.map_ofFn]
+    simp [ProductFormulaData.evalFactor]
+  have hdec : P.eval H τ = prefixFactorProd P H i τ * P.evalFactor H i τ *
+      strictSuffixFactorProd P H i τ := by
+    rw [← factorProdOver_evalIndexList P H τ]
+    simpa only [prefixFactorProd, strictSuffixFactorProd, factorProdOver] using
+      (prod_map_eq_take_mul_get_mul_drop (l := P.evalIndexList) (f := fun j => P.evalFactor H j τ)
+        i (evalIndexList_mem P i))
+  have hdecomp : P.eval H τ = (prefixFactorProd P H i τ * P.evalFactor H i τ) *
+      (List.ofFn (fun k : Fin (P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)).length =>
+        exp (τ • suffixGenerators P H i k))).prod := by
+    calc
+      P.eval H τ = prefixFactorProd P H i τ * P.evalFactor H i τ * strictSuffixFactorProd P H i τ :=
+        hdec
+      _ = (prefixFactorProd P H i τ * P.evalFactor H i τ) * strictSuffixFactorProd P H i τ := by
+        ac_rfl
+      _ = (prefixFactorProd P H i τ * P.evalFactor H i τ) *
+          (List.ofFn (fun k : Fin (P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)).length =>
+            exp (τ • suffixGenerators P H i k))).prod := by rw [hstrict]
+  have hCsum : Cprefix + (∑ k : Fin (P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)).length,
+      ‖suffixGenerators P H i k‖) ≤ (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖ := by
+    dsimp [Cprefix]
+    exact prefix_point_suffix_norm_sum_le P H i
+  have hterm := norm_mul_commutatorRemainderTerm_le (A := suffixGenerators P H i)
+    (B := P.generator H i) (L := prefixFactorProd P H i τ * P.evalFactor H i τ) (C := Cprefix)
+    (p := p) (j := j) (q := q) (τ := τ) hτ hq hlast hL
   calc
-    adSequence (orderedSummands P H) q.1 (H γ)
-        = nestedComm (expandTuple (orderedSummands P H) q.1 (H γ)) :=
-            adSequence_eq_nestedComm_expandTuple (orderedSummands P H) q.1 (H γ)
-    _ = nestedComm (expandTuple
-        (H ∘ fun i : Fin (P.Υ * P.Γ) => P.perm (i.divNat) (i.modNat)) q.1 (H γ)) := by
-            rfl
-    _ = nestedComm (H ∘ expandTuple
-        (fun i : Fin (P.Υ * P.Γ) => P.perm (i.divNat) (i.modNat)) q.1 γ) := by
-            rw [expandTuple_nat H (fun i : Fin (P.Υ * P.Γ) => P.perm (i.divNat) (i.modNat)) q.1 γ]
-    _ = nestedComm (H ∘ orderedLayers P γ p q) := by
-            rw [orderedLayers]
-            change nestedComm
-              (H ∘ expandTuple (fun i : Fin (P.Υ * P.Γ) => P.perm (i.divNat) (i.modNat)) q.1 γ) =
-              nestedComm ((H ∘ expandTuple
-                (fun i : Fin (P.Υ * P.Γ) => P.perm (i.divNat) (i.modNat)) q.1 γ) ∘
-                Fin.cast (congrArg (· + 1) (Finset.mem_finAntidiagonal.mp q.2).symm))
-            rw [← nestedComm_cast (Finset.mem_finAntidiagonal.mp q.2).symm]
+    ‖P.eval H τ * commutatorRemainderTerm (suffixGenerators P H i) (P.generator H i) (-τ) j q‖
+        = ‖(prefixFactorProd P H i τ * P.evalFactor H i τ) *
+            (List.ofFn (fun k : Fin (P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)).length =>
+              exp (τ • suffixGenerators P H i k))).prod *
+            commutatorRemainderTerm (suffixGenerators P H i) (P.generator H i) (-τ) j q‖ := by
+              rw [hdecomp]
+    _ ≤ ‖adSequence (suffixGenerators P H i ∘ Fin.castLE (Nat.succ_le_of_lt j.2)) q
+            (P.generator H i)‖ *
+          (Nat.multinomial (univ : Finset (Fin (j + 1))) q : ℝ) * |τ| ^ p / (Nat.factorial p : ℝ) *
+          Real.exp (|τ| * (Cprefix + (∑ k : Fin
+            (P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)).length,
+            ‖suffixGenerators P H i k‖))) := hterm
+    _ ≤ ‖adSequence (suffixGenerators P H i ∘ Fin.castLE (Nat.succ_le_of_lt j.2)) q
+            (P.generator H i)‖ *
+          (Nat.multinomial (univ : Finset (Fin (j + 1))) q : ℝ) * |τ| ^ p / (Nat.factorial p : ℝ) *
+          Real.exp (|τ| * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) := by
+              refine mul_le_mul_of_nonneg_left ?_ ?_
+              · exact Real.exp_le_exp.mpr
+                  (by nlinarith [mul_le_mul_of_nonneg_left hCsum (abs_nonneg τ)])
+              · positivity
 
-/-- The layer index is determined by the tuple and the stage assignment. -/
-lemma layerAt_eq_of_orderedLayers_stageOf (P : ProductFormulaData) (γ : Fin P.Γ) (p : ℕ)
-    (q : Antidiag (P.Υ * P.Γ) p) (j : Fin p) :
-    layerAt P p q j =
-      finProdFinEquiv
-        (stageOf P p q j, (P.perm (stageOf P p q j)).symm (orderedLayers P γ p q j.succ)) := by
-  rw [orderedLayers_succ P γ p q j]
-  have hs : (P.perm (stageOf P p q j)).symm (P.perm (stageOf P p q j) ((layerAt P p q j).modNat)) =
-      (layerAt P p q j).modNat :=
-    Equiv.symm_apply_apply (P.perm (stageOf P p q j)) ((layerAt P p q j).modNat)
-  rw [hs]
-  rw [stageOf]
-  rw [show finProdFinEquiv ((layerAt P p q j).divNat, (layerAt P p q j).modNat) =
-      layerAt P p q j from by
-    simpa [finProdFinEquiv_symm_apply] using (finProdFinEquiv.apply_symm_apply (layerAt P p q j))]
-
-/-- On the antidiagonal, `q ↦ (orderedLayers q, stageOf q)` is injective. -/
-lemma orderedLayers_stageOf_injective (P : ProductFormulaData) (γ : Fin P.Γ) (p : ℕ) :
-    Function.Injective
-      (fun q : Antidiag (P.Υ * P.Γ) p => (orderedLayers P γ p q, stageOf P p q)) := by
-  intro q₁ q₂ h
-  have hOL : orderedLayers P γ p q₁ = orderedLayers P γ p q₂ := congrArg Prod.fst h
-  have hS : stageOf P p q₁ = stageOf P p q₂ := congrArg Prod.snd h
-  apply Subtype.ext
-  funext i
-  rw [← layersOf_count q₁.1 i, ← layersOf_count q₂.1 i]
-  congr 1
-  apply List.ext_getElem
-  · rw [layersOf_length, layersOf_length]
-    simp [Finset.mem_finAntidiagonal.mp q₁.2, Finset.mem_finAntidiagonal.mp q₂.2]
-  · intro n hn₁ hn₂
-    have h₁n : n < p := by simpa [layersOf_length, Finset.mem_finAntidiagonal.mp q₁.2] using hn₁
-    let j : Fin p := ⟨n, h₁n⟩
-    have hl₁ := layerAt_eq_of_orderedLayers_stageOf P γ p q₁ j
-    have hl₂ := layerAt_eq_of_orderedLayers_stageOf P γ p q₂ j
-    have hl : layerAt P p q₁ j = layerAt P p q₂ j := by
-      rw [hl₁, hl₂]
-      apply congrArg finProdFinEquiv
-      apply Prod.ext
-      · exact congr_fun hS j
-      · rw [congr_fun hS j, congr_fun hOL j.succ]
-    simpa [layerAt, layerIndices] using hl
-
-/-- For a fixed target tuple `γ'`, at most `Υ^p` multiplicity vectors `q` have
-`orderedLayers q = γ'`. -/
-lemma fiber_card_le (P : ProductFormulaData) (γ : Fin P.Γ) (p : ℕ)
-    (γ' : Fin (p + 1) → Fin P.Γ) :
-    (Finset.univ.filter (fun q : Antidiag (P.Υ * P.Γ) p => orderedLayers P γ p q = γ')).card ≤
-      (P.Υ : ℕ) ^ p := by
-  let s : Finset (Antidiag (P.Υ * P.Γ) p) :=
-    Finset.univ.filter (fun q => orderedLayers P γ p q = γ')
-  have hinj : Set.InjOn (fun q : Antidiag (P.Υ * P.Γ) p => stageOf P p q)
-      (↑s : Set (Antidiag (P.Υ * P.Γ) p)) := by
-    intro q₁ hq₁ q₂ hq₂ hstage
-    have hOL₁ : orderedLayers P γ p q₁ = γ' := (Finset.mem_filter.mp hq₁).2
-    have hOL₂ : orderedLayers P γ p q₂ = γ' := (Finset.mem_filter.mp hq₂).2
-    apply orderedLayers_stageOf_injective P γ p
-    change (orderedLayers P γ p q₁, stageOf P p q₁) = (orderedLayers P γ p q₂, stageOf P p q₂)
-    exact Prod.ext (hOL₁.trans hOL₂.symm) hstage
-  have hcard : s.card ≤ (Finset.univ : Finset (Fin p → Fin P.Υ)).card := by
-    refine Finset.card_le_card_of_injOn (fun q => stageOf P p q) ?_ hinj
-    intro q hq
-    simp
+/-- The single ordered-remainder summand, scaled by `P.eval H τ`, telescopes to a single exponential
+`exp (|τ| · Υ · Σ ‖H γ‖)`. -/
+lemma norm_eval_mul_commutatorRemainderTerm_ordered_le (P : ProductFormulaData) {𝔸 : Type*}
+    [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [NormOneClass 𝔸]
+    (H : Fin P.Γ → 𝔸) (p : ℕ) (j : Fin P.evalIndexList.length) (q : Fin (j + 1) → ℕ) (τ : ℝ)
+    (hτ : 0 ≤ τ) (hq : q ∈ finAntidiagonal (j + 1) p) (hlast : q (Fin.last j) ≠ 0) :
+    ‖P.eval H τ * commutatorRemainderTerm (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) (-τ) j q‖ ≤
+      ‖adSequence (orderedGenerators P H ∘ Fin.castLE (Nat.succ_le_of_lt j.2)) q
+          (∑ γ : Fin P.Γ, H γ)‖ *
+        (Nat.multinomial (univ : Finset (Fin (j + 1))) q : ℝ) * |τ| ^ p / (Nat.factorial p : ℝ) *
+        Real.exp (|τ| * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) := by
+  have hL : ‖(1 : 𝔸)‖ ≤ Real.exp (|τ| * 0) := by simp
+  have hdecomp : P.eval H τ = (1 : 𝔸) * (List.ofFn (fun k : Fin P.evalIndexList.length =>
+      exp (τ • orderedGenerators P H k))).prod := by
+    rw [one_mul]
+    calc
+      P.eval H τ = (P.evalIndexList.map (fun i => P.evalFactor H i τ)).prod := rfl
+      _ = (P.evalIndexList.map (fun i => exp (τ • P.generator H i))).prod := by
+              simp [ProductFormulaData.evalFactor]
+      _ = (List.ofFn (fun k : Fin P.evalIndexList.length =>
+            exp (τ • P.generator H (P.evalIndexList.get k)))).prod := by
+              congr 1
+              change P.evalIndexList.map (fun i => exp (τ • P.generator H i)) =
+                List.ofFn ((fun i => exp (τ • P.generator H i)) ∘ P.evalIndexList.get)
+              rw [← List.map_ofFn, List.ofFn_get]
+      _ = (List.ofFn (fun k : Fin P.evalIndexList.length =>
+            exp (τ • orderedGenerators P H k))).prod := by rfl
+  have hsum : (0 : ℝ) + (∑ k : Fin P.evalIndexList.length, ‖orderedGenerators P H k‖) ≤
+      (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖ := by
+    simpa using sum_norm_orderedGenerators_le P H
+  have hterm := norm_mul_commutatorRemainderTerm_le (A := orderedGenerators P H)
+    (B := ∑ γ : Fin P.Γ, H γ) (L := (1 : 𝔸)) (C := 0) (p := p) (j := j) (q := q) (τ := τ)
+    hτ hq hlast hL
   calc
-    s.card ≤ (Finset.univ : Finset (Fin p → Fin P.Υ)).card := hcard
-    _ = (P.Υ : ℕ) ^ p := by
-        rw [Finset.card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin]
+    ‖P.eval H τ * commutatorRemainderTerm (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) (-τ) j q‖
+        = ‖(1 : 𝔸) * (List.ofFn (fun k : Fin P.evalIndexList.length =>
+            exp (τ • orderedGenerators P H k))).prod *
+            commutatorRemainderTerm (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) (-τ) j q‖ := by
+              rw [hdecomp]
+    _ ≤ ‖adSequence (orderedGenerators P H ∘ Fin.castLE (Nat.succ_le_of_lt j.2)) q
+            (∑ γ : Fin P.Γ, H γ)‖ *
+          (Nat.multinomial (univ : Finset (Fin (j + 1))) q : ℝ) * |τ| ^ p / (Nat.factorial p : ℝ) *
+          Real.exp (|τ| * (0 + (∑ k : Fin P.evalIndexList.length, ‖orderedGenerators P H k‖))) :=
+          hterm
+    _ ≤ ‖adSequence (orderedGenerators P H ∘ Fin.castLE (Nat.succ_le_of_lt j.2)) q
+            (∑ γ : Fin P.Γ, H γ)‖ *
+          (Nat.multinomial (univ : Finset (Fin (j + 1))) q : ℝ) * |τ| ^ p / (Nat.factorial p : ℝ) *
+          Real.exp (|τ| * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) := by
+              refine mul_le_mul_of_nonneg_left ?_ ?_
+              · exact Real.exp_le_exp.mpr
+                  (by nlinarith [mul_le_mul_of_nonneg_left hsum (abs_nonneg τ)])
+              · positivity
 
-/-! ### The ordering-removal bound -/
-
-/-- The multinomial-weighted `α_comm` is bounded by `p!` times the unweighted sum of the norms. -/
-lemma alphaCommConj_le_mul_sum {𝔸 : Type*} [NormedRing 𝔸] {s : ℕ} (A : Fin s → 𝔸) (B : 𝔸)
-    (p : ℕ) :
-    alphaCommConj A B p ≤
-      (Nat.factorial p : ℝ) * ∑ q ∈ Finset.finAntidiagonal s p, ‖adSequence A q B‖ := by
-  rw [alphaCommConj]
-  rw [Finset.mul_sum]
-  refine Finset.sum_le_sum (fun q hq => ?_)
-  have hsum : (∑ i : Fin s, q i) = p := Finset.mem_finAntidiagonal.mp hq
-  have hle : (Nat.multinomial (Finset.univ : Finset (Fin s)) q : ℝ) ≤ (Nat.factorial p : ℝ) := by
-    have hnat : Nat.multinomial (Finset.univ : Finset (Fin s)) q ≤ Nat.factorial p := by
-      simpa [hsum] using multinomial_le_factorial (Finset.univ : Finset (Fin s)) q
-    exact_mod_cast hnat
-  exact mul_le_mul_of_nonneg_right hle (norm_nonneg _)
-
-/-- For each `γ`, the sum over all `q` of the nested-commutator norms is bounded by
-`Υ^p · Σ_{γ' : γ'⟨0⟩=γ} ‖nestedComm (H ∘ γ')‖` (the paper's rep.tex:135–137). -/
-lemma sum_adSequence_norm_le (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
-    (H : Fin P.Γ → 𝔸) (γ : Fin P.Γ) (p : ℕ) :
-    (∑ q ∈ Finset.finAntidiagonal (P.Υ * P.Γ) p, ‖adSequence (orderedSummands P H) q (H γ)‖) ≤
-      (P.Υ : ℝ) ^ p *
-        (∑ γ' ∈ Finset.univ.filter (fun γ' : Fin (p + 1) → Fin P.Γ => γ' 0 = γ),
-          ‖nestedComm (H ∘ γ')‖) := by
-  let g : Antidiag (P.Υ * P.Γ) p → Fin (p + 1) → Fin P.Γ := orderedLayers P γ p
-  let A : Finset (Antidiag (P.Υ * P.Γ) p) := (Finset.finAntidiagonal (P.Υ * P.Γ) p).attach
-  let t : Finset (Fin (p + 1) → Fin P.Γ) := Finset.univ.filter (fun γ' => γ' 0 = γ)
+/-- Shared skeleton of the additive-residual norm bound: from per-remainder bounds of the scaled
+`P.eval H τ · remᵢ(-τ)` terms and the coefficient bound, conclude the telescoped residual bound. -/
+lemma norm_additiveResidual_le_of_rem_bound (P : ProductFormulaData) {𝔸 : Type*}
+    [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [NormOneClass 𝔸] [CompleteSpace 𝔸]
+    (H : Fin P.Γ → 𝔸) (p : ℕ) (hp : 1 ≤ p) (h_order : P.IsOrderOf p H) (τ : ℝ) (C : ℝ)
+    (hC : 0 ≤ C)
+    (hrem_i : ∀ i : Fin P.Υ × Fin P.Γ,
+      ‖P.eval H τ * commutatorRemainder (suffixGenerators P H i) (P.generator H i) p (-τ)‖ ≤
+        αCommConj (suffixGenerators P H i) (P.generator H i) p * C)
+    (hrem_all : ‖P.eval H τ * commutatorRemainder (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p
+        (-τ)‖ ≤ αCommConj (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p * C)
+    (hcoeff : (∑ i : Fin P.Υ × Fin P.Γ, αCommConj (suffixGenerators P H i) (P.generator H i) p)
+        + αCommConj (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p
+        ≤ 2 * (P.Υ : ℝ) * (∑ γ : Fin P.Γ, αCommConj (orderedSummandsEval P H) (H γ) p)) :
+    ‖additiveResidual P H τ‖ ≤
+      2 * (P.Υ : ℝ) * (∑ γ : Fin P.Γ, αCommConj (orderedSummandsEval P H) (H γ) p) * C := by
+  rw [additiveResidual_eq_eval_mul_kernel P H τ]
+  have hR2 := additiveKernel_eq_commutatorRemainder_sum P H p hp h_order τ
+  rw [hR2, mul_sub, Finset.mul_sum]
   calc
-    (∑ q ∈ Finset.finAntidiagonal (P.Υ * P.Γ) p, ‖adSequence (orderedSummands P H) q (H γ)‖)
-        = ∑ q ∈ A, ‖nestedComm (H ∘ g q)‖ := by
-            rw [← Finset.sum_attach]
-            refine Finset.sum_congr rfl (fun q hq => ?_)
-            rw [adSequence_orderedSummands_eq_nestedComm]
-    _ = ∑ γ' ∈ t, ∑ q ∈ A with g q = γ', ‖nestedComm (H ∘ g q)‖ := by
-            rw [Finset.sum_fiberwise_of_maps_to (fun q hq => by simp [g, t, orderedLayers_zero])]
-    _ = ∑ γ' ∈ t, ∑ q ∈ A with g q = γ', ‖nestedComm (H ∘ γ')‖ := by
-            refine Finset.sum_congr rfl (fun γ' hγ' => ?_)
-            refine Finset.sum_congr rfl (fun q hq => ?_)
-            rw [(Finset.mem_filter.mp hq).2]
-    _ ≤ ∑ γ' ∈ t, (P.Υ : ℝ) ^ p * ‖nestedComm (H ∘ γ')‖ := by
-            refine Finset.sum_le_sum (fun γ' hγ' => ?_)
-            have hcard : (A.filter (fun q => g q = γ')).card ≤ (P.Υ : ℕ) ^ p := by
-              simpa [A, g] using fiber_card_le P γ p γ'
-            rw [Finset.sum_const, nsmul_eq_mul]
-            exact mul_le_mul_of_nonneg_right (by exact_mod_cast hcard) (norm_nonneg _)
-    _ = (P.Υ : ℝ) ^ p * (∑ γ' ∈ t, ‖nestedComm (H ∘ γ')‖) := by
-            rw [Finset.mul_sum]
+    ‖(∑ i : Fin P.Υ × Fin P.Γ,
+          P.eval H τ * commutatorRemainder (suffixGenerators P H i) (P.generator H i) p (-τ))
+        - P.eval H τ * commutatorRemainder (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p (-τ)‖
+        ≤ ‖∑ i : Fin P.Υ × Fin P.Γ,
+              P.eval H τ * commutatorRemainder (suffixGenerators P H i) (P.generator H i) p (-τ)‖
+          + ‖P.eval H τ * commutatorRemainder (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p
+              (-τ)‖ :=
+              norm_sub_le _ _
+    _ ≤ (∑ i : Fin P.Υ × Fin P.Γ,
+            ‖P.eval H τ * commutatorRemainder (suffixGenerators P H i) (P.generator H i) p (-τ)‖)
+          + ‖P.eval H τ * commutatorRemainder (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p
+              (-τ)‖ := by
+              gcongr
+              exact norm_sum_le univ
+                (fun i => P.eval H τ * commutatorRemainder (suffixGenerators P H i)
+                  (P.generator H i) p (-τ))
+    _ ≤ (∑ i : Fin P.Υ × Fin P.Γ, αCommConj (suffixGenerators P H i) (P.generator H i) p * C)
+          + αCommConj (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p * C := by
+              refine add_le_add (sum_le_sum (fun i _ => hrem_i i)) hrem_all
+    _ = ((∑ i : Fin P.Υ × Fin P.Γ, αCommConj (suffixGenerators P H i) (P.generator H i) p)
+          + αCommConj (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p) * C := by
+              rw [← sum_mul, ← add_mul]
+    _ ≤ (2 * (P.Υ : ℝ) * (∑ γ : Fin P.Γ, αCommConj (orderedSummandsEval P H) (H γ) p)) * C :=
+              mul_le_mul_of_nonneg_right hcoeff hC
+    _ = 2 * (P.Υ : ℝ) * (∑ γ : Fin P.Γ, αCommConj (orderedSummandsEval P H) (H γ) p) * C := by ring
 
-/-- rep.tex:129-139 (ordering removal): the sum over innermost summands of the conjugation
-`α_comm` is bounded by `p! · Υ^p · α~_comm` — each multinomial coefficient is ≤ `p!`, and each
-nested-commutator pattern recurs in at most `Υ^p` stage placements. -/
-theorem alphaCommConj_sum_le_alphaComm (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
-    (H : Fin P.Γ → 𝔸) (p : ℕ) :
-    (∑ γ : Fin P.Γ, alphaCommConj (orderedSummands P H) (H γ) p) ≤
-      (Nat.factorial p : ℝ) * (P.Υ : ℝ) ^ p * alphaComm p H := by
-  have hfiber :
-      (∑ γ : Fin P.Γ, ∑ γ' ∈ Finset.univ.filter (fun γ' : Fin (p + 1) → Fin P.Γ => γ' 0 = γ),
-          ‖nestedComm (H ∘ γ')‖) = ∑ γ' : Fin (p + 1) → Fin P.Γ, ‖nestedComm (H ∘ γ')‖ := by
-    simpa using (Finset.sum_fiberwise (Finset.univ : Finset (Fin (p + 1) → Fin P.Γ))
-      (fun γ' : Fin (p + 1) → Fin P.Γ => γ' 0)
-      (fun γ' : Fin (p + 1) → Fin P.Γ => ‖nestedComm (H ∘ γ')‖))
+/-- `thm:trotter_error_comm_scaling` (general branch): the additive residual telescopes to
+`2 Υ (Σ_γ α_comm) |τ|^p / p! · exp(|τ| Υ Σ ‖H_γ‖)` (rep.tex:96–113). -/
+theorem norm_additiveResidual_le (P : ProductFormulaData) {𝔸 : Type*}
+    [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [NormOneClass 𝔸]
+    (H : Fin P.Γ → 𝔸) (p : ℕ) (hp : 1 ≤ p) (h_order : P.IsOrderOf p H) (hΥ : 0 < P.Υ)
+    (τ : ℝ) (hτ : 0 ≤ τ) :
+    ‖additiveResidual P H τ‖ ≤
+      2 * (P.Υ : ℝ) * (∑ γ : Fin P.Γ, αCommConj (orderedSummandsEval P H) (H γ) p) *
+        |τ| ^ p / (Nat.factorial p : ℝ) * Real.exp (|τ| * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) := by
+  let N : ℝ := (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖
+  let C : ℝ := |τ| ^ p / (Nat.factorial p : ℝ) * Real.exp (|τ| * N)
+  have hC : 0 ≤ C := by dsimp [C]; positivity
+  have hrem_i : ∀ i : Fin P.Υ × Fin P.Γ,
+      ‖P.eval H τ * commutatorRemainder (suffixGenerators P H i) (P.generator H i) p (-τ)‖ ≤
+        αCommConj (suffixGenerators P H i) (P.generator H i) p * C := by
+    intro i
+    have hbound := norm_mul_commutatorRemainder_le_of_term_bound (M := P.eval H τ)
+      (A := suffixGenerators P H i) (B := P.generator H i) (p := p) (τ := -τ)
+      (F := Real.exp (|τ| * N)) (by positivity) ?_
+    · simpa [C, N, abs_neg, div_eq_mul_inv, mul_assoc] using hbound
+    · intro j q hq
+      have hqf := mem_filter.mp hq
+      simpa [abs_neg, N, mul_assoc] using
+        norm_eval_mul_commutatorRemainderTerm_le P H i p j q τ hτ hqf.1 hqf.2
+  have hrem_all : ‖P.eval H τ * commutatorRemainder (orderedGenerators P H)
+      (∑ γ : Fin P.Γ, H γ) p (-τ)‖ ≤
+      αCommConj (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p * C := by
+    have hbound := norm_mul_commutatorRemainder_le_of_term_bound (M := P.eval H τ)
+      (A := orderedGenerators P H) (B := ∑ γ : Fin P.Γ, H γ) (p := p) (τ := -τ)
+      (F := Real.exp (|τ| * N)) (by positivity) ?_
+    · simpa [C, N, abs_neg, div_eq_mul_inv, mul_assoc] using hbound
+    · intro j q hq
+      have hqf := mem_filter.mp hq
+      simpa [abs_neg, N, mul_assoc] using
+        norm_eval_mul_commutatorRemainderTerm_ordered_le P H p j q τ hτ hqf.1 hqf.2
+  simpa [C, N, div_eq_mul_inv, mul_assoc] using
+    norm_additiveResidual_le_of_rem_bound P H p hp h_order τ C hC hrem_i hrem_all
+      (sum_αCommConj_suffix_add_ordered_le P H p hΥ)
+
+/-! ### R3g-final: pointwise and asymptotic commuting-scaling bounds -/
+
+/-- The additive error as an integral of the additive residual (the unfactored form of
+`errorType_additive`). -/
+lemma eval_sub_exp_eq_integral_residual (P : ProductFormulaData) {𝔸 : Type*}
+    [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸]
+    (H : Fin P.Γ → 𝔸) (t : ℝ) :
+    P.eval H t - exp (t • ∑ γ : Fin P.Γ, H γ) =
+      ∫ τ in 0..t, exp ((t - τ) • (∑ γ : Fin P.Γ, H γ)) * additiveResidual P H τ := by
+  have h := errorType_additive P H t
+  rw [h, add_sub_cancel_left]
+  refine intervalIntegral.integral_congr_uIoo ?_
+  intro τ _
+  change exp ((t - τ) • (∑ γ : Fin P.Γ, H γ)) * P.eval H τ * additiveKernel P H τ =
+    exp ((t - τ) • (∑ γ : Fin P.Γ, H γ)) * additiveResidual P H τ
+  rw [mul_assoc, additiveResidual_eq_eval_mul_kernel P H τ]
+
+/-- `thm:trotter_error_comm_scaling` (general branch): the explicit pointwise commuting-scaling
+bound with the exponential prefactor `exp (2 t Υ Σ ‖H_γ‖)`. -/
+theorem trotter_error_bound_comm_scaling (P : ProductFormulaData) {𝔸 : Type*}
+    [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [NormOneClass 𝔸]
+    (H : Fin P.Γ → 𝔸) (p : ℕ) (hp : 1 ≤ p) (h_order : P.IsOrderOf p H) (hΥ : 0 < P.Υ) :
+    ∀ t : ℝ, 0 ≤ t →
+      ‖P.eval H t - exp (t • ∑ γ : Fin P.Γ, H γ)‖ ≤
+        2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1) * αComm p H * t ^ (p + 1) *
+          Real.exp (2 * t * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) := by
+  let S : 𝔸 := ∑ γ : Fin P.Γ, H γ
+  let N : ℝ := ∑ γ : Fin P.Γ, ‖H γ‖
+  let sAlpha : ℝ := ∑ γ : Fin P.Γ, αCommConj (orderedSummandsEval P H) (H γ) p
+  let C : ℝ := 2 * (P.Υ : ℝ) * sAlpha
+  have hS_le : ‖S‖ ≤ N := by
+    dsimp [S, N]
+    exact norm_sum_le univ H
+  have hsAlpha_le : sAlpha ≤ (Nat.factorial p : ℝ) * (P.Υ : ℝ) ^ p * αComm p H := by
+    dsimp [sAlpha]
+    rw [← orderedSummands_reverseStages P H]
+    exact αCommConj_sum_le_αComm (reverseStages P) H p
+  have hR3 : ∀ τ, 0 ≤ τ → ‖additiveResidual P H τ‖ ≤ C * |τ| ^ p / (Nat.factorial p : ℝ) *
+      Real.exp (|τ| * (P.Υ : ℝ) * N) := by
+    intro τ hτ
+    simpa [C, sAlpha, N] using norm_additiveResidual_le P H p hp h_order hΥ τ hτ
+  have hintegral (t : ℝ) (ht : 0 ≤ t) :
+      ∫ τ in 0..t, C * |τ| ^ p / (Nat.factorial p : ℝ) * Real.exp (2 * t * (P.Υ : ℝ) * N) =
+        (C / (Nat.factorial p : ℝ)) * Real.exp (2 * t * (P.Υ : ℝ) * N) *
+          (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) := by
+    calc
+      ∫ τ in 0..t, C * |τ| ^ p / (Nat.factorial p : ℝ) * Real.exp (2 * t * (P.Υ : ℝ) * N)
+          = ∫ τ in 0..t, (C / (Nat.factorial p : ℝ)) * Real.exp (2 * t * (P.Υ : ℝ) * N) *
+              |τ| ^ p := by
+              apply intervalIntegral.integral_congr_uIoo
+              intro τ _
+              ring
+      _ = (C / (Nat.factorial p : ℝ)) * Real.exp (2 * t * (P.Υ : ℝ) * N) *
+          ∫ τ in 0..t, |τ| ^ p := by
+              rw [intervalIntegral.integral_const_mul]
+      _ = (C / (Nat.factorial p : ℝ)) * Real.exp (2 * t * (P.Υ : ℝ) * N) * ∫ τ in 0..t, τ ^ p := by
+              congr 1
+              apply intervalIntegral.integral_congr_uIoo
+              intro τ hτ
+              have hτ_pos : 0 < τ := by simpa [Set.uIoo, min_eq_left ht] using hτ.1
+              change |τ| ^ p = τ ^ p
+              rw [abs_of_nonneg hτ_pos.le]
+      _ = (C / (Nat.factorial p : ℝ)) * Real.exp (2 * t * (P.Υ : ℝ) * N) *
+            (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) := by
+              congr 1
+              simp
+  intro t ht
   calc
-    (∑ γ : Fin P.Γ, alphaCommConj (orderedSummands P H) (H γ) p)
-        ≤ ∑ γ : Fin P.Γ, (Nat.factorial p : ℝ) *
-            (∑ q ∈ Finset.finAntidiagonal (P.Υ * P.Γ) p,
-              ‖adSequence (orderedSummands P H) q (H γ)‖) := by
-            refine Finset.sum_le_sum
-              (fun γ hγ => alphaCommConj_le_mul_sum (orderedSummands P H) (H γ) p)
-    _ = (Nat.factorial p : ℝ) * ∑ γ : Fin P.Γ,
-            (∑ q ∈ Finset.finAntidiagonal (P.Υ * P.Γ) p,
-              ‖adSequence (orderedSummands P H) q (H γ)‖) := by
-            rw [Finset.mul_sum]
-    _ ≤ (Nat.factorial p : ℝ) * ∑ γ : Fin P.Γ,
-            ((P.Υ : ℝ) ^ p *
-              (∑ γ' ∈ Finset.univ.filter (fun γ' : Fin (p + 1) → Fin P.Γ => γ' 0 = γ),
-                ‖nestedComm (H ∘ γ')‖)) := by
-            exact mul_le_mul_of_nonneg_left
-              (Finset.sum_le_sum (fun γ hγ => sum_adSequence_norm_le P H γ p))
-              (Nat.cast_nonneg _)
-    _ = (Nat.factorial p : ℝ) * ((P.Υ : ℝ) ^ p *
-          (∑ γ : Fin P.Γ,
-            (∑ γ' ∈ Finset.univ.filter (fun γ' : Fin (p + 1) → Fin P.Γ => γ' 0 = γ),
-              ‖nestedComm (H ∘ γ')‖))) := by
-            rw [← Finset.mul_sum]
-    _ = (Nat.factorial p : ℝ) * (P.Υ : ℝ) ^ p *
-          (∑ γ : Fin P.Γ,
-            (∑ γ' ∈ Finset.univ.filter (fun γ' : Fin (p + 1) → Fin P.Γ => γ' 0 = γ),
-              ‖nestedComm (H ∘ γ')‖)) := by
-            ring
-    _ = (Nat.factorial p : ℝ) * (P.Υ : ℝ) ^ p *
-          (∑ γ' : Fin (p + 1) → Fin P.Γ, ‖nestedComm (H ∘ γ')‖) := by
-            rw [hfiber]
-    _ = (Nat.factorial p : ℝ) * (P.Υ : ℝ) ^ p * alphaComm p H := by
-            rw [alphaComm]
+    ‖P.eval H t - exp (t • S)‖
+        = ‖∫ τ in 0..t, exp ((t - τ) • S) * additiveResidual P H τ‖ := by
+            rw [eval_sub_exp_eq_integral_residual P H t]
+    _ ≤ ∫ τ in 0..t, C * |τ| ^ p / (Nat.factorial p : ℝ) * Real.exp (2 * t * (P.Υ : ℝ) * N) := by
+            have hpoint : ∀ τ ∈ Set.Ioc (0 : ℝ) t,
+                ‖exp ((t - τ) • S) * additiveResidual P H τ‖ ≤
+                  C * |τ| ^ p / (Nat.factorial p : ℝ) * Real.exp (2 * t * (P.Υ : ℝ) * N) := by
+              intro τ hτ
+              have hτpos : 0 ≤ τ := le_of_lt hτ.1
+              have hexpS : ‖exp ((t - τ) • S)‖ ≤ Real.exp (|t - τ| * N) := by
+                calc
+                  ‖exp ((t - τ) • S)‖ ≤ Real.exp (‖(t - τ) • S‖) := norm_exp_le _
+                  _ = Real.exp (|t - τ| * ‖S‖) := by rw [norm_smul, Real.norm_eq_abs]
+                  _ ≤ Real.exp (|t - τ| * N) :=
+                      Real.exp_le_exp.mpr (mul_le_mul_of_nonneg_left hS_le (abs_nonneg _))
+              have hres : ‖additiveResidual P H τ‖ ≤ C * |τ| ^ p / (Nat.factorial p : ℝ) *
+                  Real.exp (|τ| * (P.Υ : ℝ) * N) := hR3 τ hτpos
+              have harg : |t - τ| * N + |τ| * (P.Υ : ℝ) * N ≤ 2 * t * (P.Υ : ℝ) * N := by
+                have hN : 0 ≤ N := by dsimp [N]; exact sum_nonneg (fun γ _ => norm_nonneg _)
+                have hΥR : 1 ≤ (P.Υ : ℝ) := by exact_mod_cast (Nat.succ_le_of_lt hΥ)
+                have harg' : |t - τ| + |τ| * (P.Υ : ℝ) ≤ 2 * t * (P.Υ : ℝ) := by
+                  rw [abs_of_nonneg hτpos, abs_of_nonneg (sub_nonneg.mpr hτ.2)]
+                  nlinarith [hτ.1.le, hτ.2, hΥR, ht]
+                nlinarith [mul_le_mul_of_nonneg_left harg' hN]
+              calc
+                ‖exp ((t - τ) • S) * additiveResidual P H τ‖
+                    ≤ ‖exp ((t - τ) • S)‖ * ‖additiveResidual P H τ‖ := norm_mul_le _ _
+                _ ≤ Real.exp (|t - τ| * N) * (C * |τ| ^ p / (Nat.factorial p : ℝ) *
+                      Real.exp (|τ| * (P.Υ : ℝ) * N)) :=
+                      mul_le_mul hexpS hres (norm_nonneg _) (Real.exp_pos _).le
+                _ = C * |τ| ^ p / (Nat.factorial p : ℝ) * (Real.exp (|t - τ| * N) *
+                      Real.exp (|τ| * (P.Υ : ℝ) * N)) := by ring
+                _ = C * |τ| ^ p / (Nat.factorial p : ℝ) * Real.exp (|t - τ| * N +
+                      |τ| * (P.Υ : ℝ) * N) := by rw [← Real.exp_add]
+                _ ≤ C * |τ| ^ p / (Nat.factorial p : ℝ) * Real.exp (2 * t * (P.Υ : ℝ) * N) := by
+                      refine mul_le_mul_of_nonneg_left ?_ ?_
+                      · exact Real.exp_le_exp.mpr harg
+                      · have hC_nonneg : 0 ≤ C := by
+                          dsimp [C, sAlpha]
+                          exact mul_nonneg (mul_nonneg zero_le_two (Nat.cast_nonneg _))
+                            (sum_nonneg (fun γ _ => αCommConj_nonneg _ _ _))
+                        exact div_nonneg (mul_nonneg hC_nonneg (pow_nonneg (abs_nonneg τ) p))
+                          (Nat.cast_nonneg _)
+            have hg_cont : Continuous (fun τ : ℝ => C * |τ| ^ p / (Nat.factorial p : ℝ) *
+                Real.exp (2 * t * (P.Υ : ℝ) * N)) := by fun_prop
+            exact intervalIntegral.norm_integral_le_of_norm_le ht
+              (by filter_upwards with τ hτ; exact hpoint τ hτ) (hg_cont.intervalIntegrable 0 t)
+    _ = (C / (Nat.factorial p : ℝ)) * Real.exp (2 * t * (P.Υ : ℝ) * N) *
+          (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) := hintegral t ht
+    _ ≤ 2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1) * αComm p H * t ^ (p + 1) *
+          Real.exp (2 * t * (P.Υ : ℝ) * N) := by
+            have hC_le : C / (Nat.factorial p : ℝ) ≤ 2 * (P.Υ : ℝ) ^ (p + 1) * αComm p H := by
+              have h := hsAlpha_le
+              have hpf : 0 < (Nat.factorial p : ℝ) := by positivity
+              dsimp [C, sAlpha]
+              rw [pow_succ, div_le_iff₀ hpf]
+              nlinarith
+            have hnonneg : 0 ≤ (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) *
+                Real.exp (2 * t * (P.Υ : ℝ) * N) := by positivity
+            have h1 := mul_le_mul_of_nonneg_right hC_le hnonneg
+            calc
+              (C / (Nat.factorial p : ℝ)) * Real.exp (2 * t * (P.Υ : ℝ) * N) *
+                  (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ))
+                  = (C / (Nat.factorial p : ℝ)) * ((t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) *
+                      Real.exp (2 * t * (P.Υ : ℝ) * N)) := by ring
+              _ ≤ (2 * (P.Υ : ℝ) ^ (p + 1) * αComm p H) * ((t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) *
+                    Real.exp (2 * t * (P.Υ : ℝ) * N)) := h1
+              _ = 2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1) * αComm p H * t ^ (p + 1) *
+                    Real.exp (2 * t * (P.Υ : ℝ) * N) := by ring
+
+/-- `thm:trotter_error_comm_scaling` (general branch): the commuting-scaling bound as `t → ∞`. -/
+theorem trotter_error_comm_scaling (P : ProductFormulaData) {𝔸 : Type*}
+    [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [NormOneClass 𝔸]
+    (H : Fin P.Γ → 𝔸) (p : ℕ) (hp : 1 ≤ p) (h_order : P.IsOrderOf p H) (hΥ : 0 < P.Υ) :
+    (fun t : ℝ ↦ ‖P.eval H t - exp (t • ∑ γ : Fin P.Γ, H γ)‖) =O[Filter.atTop]
+      (fun t : ℝ ↦ αComm p H * t ^ (p + 1) *
+        Real.exp (2 * t * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖)) := by
+  have hα : 0 ≤ αComm p H := αComm_nonneg p H
+  refine IsBigO.of_bound (2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1)) ?_
+  filter_upwards [Filter.eventually_ge_atTop 0] with t ht
+  rw [Real.norm_of_nonneg (norm_nonneg _),
+    Real.norm_of_nonneg (mul_nonneg (mul_nonneg hα (pow_nonneg ht (p + 1))) (Real.exp_pos _).le)]
+  calc
+    ‖P.eval H t - exp (t • ∑ γ : Fin P.Γ, H γ)‖
+        ≤ 2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1) * αComm p H * t ^ (p + 1) *
+            Real.exp (2 * t * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) :=
+            trotter_error_bound_comm_scaling P H p hp h_order hΥ t ht
+    _ = (2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1)) *
+          (αComm p H * t ^ (p + 1) * Real.exp (2 * t * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖)) := by ring
+
+/-! ### R4: commuting-scaling bound and Trotter number -/
+
+/-- `eq:trotter_error_comm_scaling_bound` (anti-Hermitian): the explicit pointwise commuting-scaling
+bound, valid for all `t ≥ 0`. -/
+theorem trotter_error_bound_comm_scaling_of_skewAdjoint (P : ProductFormulaData) {𝔸 : Type*}
+    [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [NormOneClass 𝔸]
+    [StarRing 𝔸] [CStarRing 𝔸] [Nontrivial 𝔸] [StarModule ℝ 𝔸] (H : Fin P.Γ → 𝔸)
+    (h_skew : ∀ γ, star (H γ) = -(H γ)) (p : ℕ) (hp : 1 ≤ p) (h_order : P.IsOrderOf p H)
+    (hΥ : 0 < P.Υ) :
+    ∀ t : ℝ, 0 ≤ t →
+      ‖P.eval H t - exp (t • ∑ γ : Fin P.Γ, H γ)‖ ≤
+        2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1) * αComm p H * t ^ (p + 1) := by
+  let S : 𝔸 := ∑ γ : Fin P.Γ, H γ
+  let sAlpha : ℝ := ∑ γ : Fin P.Γ, αCommConj (orderedSummandsEval P H) (H γ) p
+  let C : ℝ := 2 * (P.Υ : ℝ) * sAlpha
+  have hS_skew : star S = -S := sum_skewAdjoint H h_skew
+  have hsAlpha_le : sAlpha ≤ (Nat.factorial p : ℝ) * (P.Υ : ℝ) ^ p * αComm p H := by
+    dsimp [sAlpha]
+    rw [← orderedSummands_reverseStages P H]
+    exact αCommConj_sum_le_αComm (reverseStages P) H p
+  have hR3 : ∀ τ, ‖additiveKernel P H τ‖ ≤ C * |τ| ^ p / (Nat.factorial p : ℝ) := by
+    intro τ
+    simpa [C, sAlpha] using norm_additiveKernel_le_of_skewAdjoint P H h_skew p hp h_order hΥ τ
+  have hintegral (t : ℝ) (ht : 0 ≤ t) :
+      ∫ τ in 0..t, C * |τ| ^ p / (Nat.factorial p : ℝ) =
+        (C / (Nat.factorial p : ℝ)) * (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) := by
+    calc
+      ∫ τ in 0..t, C * |τ| ^ p / (Nat.factorial p : ℝ)
+          = ∫ τ in 0..t, (C / (Nat.factorial p : ℝ)) * |τ| ^ p := by
+              apply intervalIntegral.integral_congr_uIoo
+              intro τ _
+              ring
+      _ = (C / (Nat.factorial p : ℝ)) * ∫ τ in 0..t, |τ| ^ p := by
+              rw [intervalIntegral.integral_const_mul]
+      _ = (C / (Nat.factorial p : ℝ)) * ∫ τ in 0..t, τ ^ p := by
+              congr 1
+              apply intervalIntegral.integral_congr_uIoo
+              intro τ hτ
+              have hτ_pos : 0 < τ := by simpa [Set.uIoo, min_eq_left ht] using hτ.1
+              dsimp
+              rw [abs_of_nonneg hτ_pos.le]
+      _ = (C / (Nat.factorial p : ℝ)) * (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) := by
+              congr 1
+              simp
+  intro t ht
+  calc
+    ‖P.eval H t - exp (t • S)‖
+        = ‖exp (t • S) * ∫ τ in 0..t, (exp ((-τ) • S) * P.eval H τ) * additiveKernel P H τ‖ := by
+            rw [eval_sub_exp_eq_exp_mul_integral P H t]
+    _ ≤ ‖exp (t • S)‖ * ‖∫ τ in 0..t, (exp ((-τ) • S) * P.eval H τ) * additiveKernel P H τ‖ :=
+            norm_mul_le _ _
+    _ = ‖∫ τ in 0..t, (exp ((-τ) • S) * P.eval H τ) * additiveKernel P H τ‖ := by
+            rw [norm_exp_smul_of_skewAdjoint hS_skew t, one_mul]
+    _ ≤ ∫ τ in 0..t, C * |τ| ^ p / (Nat.factorial p : ℝ) := by
+            have hpoint : ∀ τ ∈ Set.Ioc (0 : ℝ) t,
+                ‖(exp ((-τ) • S) * P.eval H τ) * additiveKernel P H τ‖ ≤
+                  C * |τ| ^ p / (Nat.factorial p : ℝ) := by
+              intro τ hτ
+              have hfac : ‖exp ((-τ) • S) * P.eval H τ‖ ≤ 1 := by
+                calc
+                  ‖exp ((-τ) • S) * P.eval H τ‖ ≤ ‖exp ((-τ) • S)‖ * ‖P.eval H τ‖ := norm_mul_le _ _
+                  _ = 1 * ‖P.eval H τ‖ := by rw [norm_exp_smul_of_skewAdjoint hS_skew (-τ)]
+                  _ = ‖P.eval H τ‖ := one_mul _
+                  _ ≤ 1 := norm_eval_le_one_of_skew P H h_skew τ
+              calc
+                ‖(exp ((-τ) • S) * P.eval H τ) * additiveKernel P H τ‖
+                    ≤ ‖exp ((-τ) • S) * P.eval H τ‖ * ‖additiveKernel P H τ‖ := norm_mul_le _ _
+                _ ≤ 1 * ‖additiveKernel P H τ‖ := mul_le_mul_of_nonneg_right hfac (norm_nonneg _)
+                _ = ‖additiveKernel P H τ‖ := one_mul _
+                _ ≤ C * |τ| ^ p / (Nat.factorial p : ℝ) := hR3 τ
+            have hg_cont : Continuous (fun τ : ℝ => C * |τ| ^ p / (Nat.factorial p : ℝ)) := by
+              fun_prop
+            exact intervalIntegral.norm_integral_le_of_norm_le ht
+              (by filter_upwards with τ hτ; exact hpoint τ hτ) (hg_cont.intervalIntegrable 0 t)
+    _ = (C / (Nat.factorial p : ℝ)) * (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) := hintegral t ht
+    _ ≤ 2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1) * αComm p H * t ^ (p + 1) := by
+            have hC_le : C / (Nat.factorial p : ℝ) ≤ 2 * (P.Υ : ℝ) ^ (p + 1) * αComm p H := by
+              have h := hsAlpha_le
+              have hpf : 0 < (Nat.factorial p : ℝ) := by positivity
+              dsimp [C]
+              rw [pow_succ, div_le_iff₀ hpf]
+              nlinarith
+            have hnonneg : 0 ≤ t ^ (p + 1) / ((p + 1 : ℕ) : ℝ) := by positivity
+            have h1 := mul_le_mul_of_nonneg_right hC_le hnonneg
+            calc
+              C / (Nat.factorial p : ℝ) * (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ))
+                  ≤ 2 * (P.Υ : ℝ) ^ (p + 1) * αComm p H *
+                      (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) := h1
+              _ = 2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1) * αComm p H * t ^ (p + 1) := by
+                      ring
+
+/-- `thm:trotter_error_comm_scaling` (anti-Hermitian): the commuting-scaling bound as `t → ∞`. -/
+theorem trotter_error_comm_scaling_of_skewAdjoint (P : ProductFormulaData) {𝔸 : Type*}
+    [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [NormOneClass 𝔸]
+    [StarRing 𝔸] [CStarRing 𝔸] [Nontrivial 𝔸] [StarModule ℝ 𝔸] (H : Fin P.Γ → 𝔸)
+    (h_skew : ∀ γ, star (H γ) = -(H γ)) (p : ℕ) (hp : 1 ≤ p) (h_order : P.IsOrderOf p H)
+    (hΥ : 0 < P.Υ) :
+    (fun t : ℝ ↦ ‖P.eval H t - exp (t • ∑ γ : Fin P.Γ, H γ)‖) =O[Filter.atTop]
+      (fun t : ℝ ↦ αComm p H * t ^ (p + 1)) := by
+  have hα : 0 ≤ αComm p H := αComm_nonneg p H
+  refine IsBigO.of_bound (2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1)) ?_
+  filter_upwards [Filter.eventually_ge_atTop 0] with t ht
+  rw [Real.norm_of_nonneg (norm_nonneg _),
+    Real.norm_of_nonneg (mul_nonneg hα (pow_nonneg ht (p + 1)))]
+  calc
+    ‖P.eval H t - exp (t • ∑ γ : Fin P.Γ, H γ)‖
+        ≤ 2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1) * αComm p H * t ^ (p + 1) :=
+            trotter_error_bound_comm_scaling_of_skewAdjoint P H h_skew p hp h_order hΥ t ht
+    _ = (2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1)) * (αComm p H * t ^ (p + 1)) := by ring
+
+/-- `cor:trotter_number_comm_scaling`: for anti-Hermitian summands, the `r`-step Trotter error with
+the commuting-scaling bound decays as `O(r^{-p})` as `r → ∞`. -/
+theorem trotter_number_comm_scaling (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
+    [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [StarRing 𝔸]
+    [CStarRing 𝔸] [Nontrivial 𝔸] [StarModule ℝ 𝔸]
+    (H : Fin P.Γ → 𝔸) (p : ℕ) (hp : 1 ≤ p) (h_skew : ∀ γ : Fin P.Γ, star (H γ) = -(H γ))
+    (h_order : P.IsOrderOf p H) (hΥ : 0 < P.Υ) (t : ℝ) (ht : 0 ≤ t) :
+    (fun r : ℕ => ‖(P.eval H (t / (r : ℝ))) ^ r - exp (t • ∑ γ : Fin P.Γ, H γ)‖) =O[Filter.atTop]
+      (fun r : ℕ => ((r : ℝ) ^ p)⁻¹) := by
+  let S : 𝔸 := ∑ γ : Fin P.Γ, H γ
+  let α : ℝ := αComm p H
+  have hS_skew : star S = -S := sum_skewAdjoint H h_skew
+  have hα : 0 ≤ α := by dsimp [α]; exact αComm_nonneg p H
+  have hO' : (fun r : ℕ => ‖P.eval H (t / (r : ℝ)) - exp ((t / (r : ℝ)) • S)‖) =O[Filter.atTop]
+      (fun r : ℕ => α * (t / (r : ℝ)) ^ (p + 1)) := by
+    refine IsBigO.of_bound (2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1)) ?_
+    filter_upwards [Filter.eventually_ge_atTop 1] with r hr
+    have hrpos : 0 < (r : ℝ) := mod_cast (Nat.lt_of_lt_of_le zero_lt_one hr)
+    have hnonneg_arg : 0 ≤ α * (t / (r : ℝ)) ^ (p + 1) :=
+      mul_nonneg hα (pow_nonneg (div_nonneg ht (le_of_lt hrpos)) (p + 1))
+    rw [Real.norm_of_nonneg (norm_nonneg _), Real.norm_of_nonneg hnonneg_arg]
+    simpa [S, α] using
+      (trotter_error_bound_comm_scaling_of_skewAdjoint P H h_skew p hp h_order hΥ
+        (t / (r : ℝ)) (div_nonneg ht (le_of_lt hrpos))).trans_eq (by push_cast; ring)
+  obtain ⟨C, hC⟩ := hO'.bound
+  refine IsBigO.of_bound (C * α * t ^ (p + 1)) ?_
+  filter_upwards [hC, (Filter.eventually_ge_atTop 1)] with r hr_le hr1
+  have hrpos_nat : 0 < r := Nat.lt_of_lt_of_le zero_lt_one hr1
+  have hrpos : 0 < (r : ℝ) := mod_cast hrpos_nat
+  have hr_ne : (r : ℝ) ≠ 0 := ne_of_gt hrpos
+  have hr_nonneg : 0 ≤ (r : ℝ) := le_of_lt hrpos
+  have hA_le : ‖P.eval H (t / (r : ℝ))‖ ≤ 1 :=
+    norm_eval_le_one_of_skew P H h_skew (t / (r : ℝ))
+  have hB_le : ‖exp ((t / (r : ℝ)) • S)‖ ≤ 1 :=
+    le_of_eq (norm_exp_smul_of_skewAdjoint hS_skew (t / (r : ℝ)))
+  have hnonneg_arg : 0 ≤ α * (t / (r : ℝ)) ^ (p + 1) :=
+    mul_nonneg hα (pow_nonneg (div_nonneg ht hr_nonneg) (p + 1))
+  have hr_le' : ‖P.eval H (t / (r : ℝ)) - exp ((t / (r : ℝ)) • S)‖ ≤
+      C * ‖α * (t / (r : ℝ)) ^ (p + 1)‖ := by
+    rwa [← Real.norm_of_nonneg (norm_nonneg (P.eval H (t / (r : ℝ)) - exp ((t / (r : ℝ)) • S)))]
+  rw [Real.norm_of_nonneg (norm_nonneg ((P.eval H (t / (r : ℝ))) ^ r - exp (t • S)))]
+  calc
+    ‖(P.eval H (t / (r : ℝ))) ^ r - exp (t • S)‖
+        = ‖(P.eval H (t / (r : ℝ))) ^ r - exp ((t / (r : ℝ)) • S) ^ r‖ := by
+            rw [exp_smul_eq_pow_of_div S t hrpos_nat]
+    _ ≤ (r : ℝ) * ‖P.eval H (t / (r : ℝ)) - exp ((t / (r : ℝ)) • S)‖ :=
+            norm_pow_sub_pow_le_of_norm_le_one (P.eval H (t / (r : ℝ)))
+              (exp ((t / (r : ℝ)) • S)) r hA_le hB_le
+    _ ≤ (r : ℝ) * (C * ‖α * (t / (r : ℝ)) ^ (p + 1)‖) :=
+            mul_le_mul_of_nonneg_left hr_le' hr_nonneg
+    _ = C * α * t ^ (p + 1) * ‖((r : ℝ) ^ p)⁻¹‖ := by
+            rw [Real.norm_of_nonneg hnonneg_arg,
+              Real.norm_of_nonneg (inv_nonneg.mpr (pow_nonneg hr_nonneg p))]
+            calc
+              (r : ℝ) * (C * (α * (t / (r : ℝ)) ^ (p + 1)))
+                  = C * (α * ((r : ℝ) * (t / (r : ℝ)) ^ (p + 1))) := by ring
+              _ = C * (α * (t ^ (p + 1) * ((r : ℝ) ^ p)⁻¹)) := by
+                      rw [natCast_mul_pow_div_pow_succ t r p hr_ne]
+              _ = C * α * t ^ (p + 1) * ((r : ℝ) ^ p)⁻¹ := by ring
 
 end TrotterError

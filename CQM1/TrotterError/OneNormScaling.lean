@@ -7,6 +7,7 @@ module
 
 public import CQM1.TrotterError.Integrals
 public import CQM1.TrotterError.ProductFormula
+public import CQM1.TrotterError.OrderCondition
 
 /-!
 # Trotter error with `1`-norm scaling
@@ -27,27 +28,7 @@ open NormedSpace
 open Asymptotics
 open scoped Topology BigOperators ContDiff
 
-/-! ### Smoothness of the product formula and the exponential -/
-
-/-- The pointwise product of a finite list of smooth functions is smooth. -/
-lemma contDiff_list_prod {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
-    {ι : Type*} (l : List ι) (f : ι → ℝ → 𝔸)
-    (hf : ∀ i ∈ l, ContDiff ℝ ∞ (f i)) :
-    ContDiff ℝ ∞ (fun t : ℝ => (l.map (fun i => f i t)).prod) := by
-  induction l with
-  | nil => simpa using (contDiff_const : ContDiff ℝ ∞ (fun _ : ℝ => (1 : 𝔸)))
-  | cons a l ih =>
-      simp only [List.map_cons, List.prod_cons]
-      exact ContDiff.mul (hf a (by simp)) (ih (fun i hi => hf i (by simp [hi])))
-
-/-- The product formula `t ↦ P.eval H t` is smooth. -/
-lemma contDiff_eval (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
-    [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸]
-    (H : Fin P.Γ → 𝔸) :
-    ContDiff ℝ ∞ (fun t : ℝ => P.eval H t) := by
-  refine contDiff_list_prod P.evalIndexList (fun i t => P.evalFactor H i t) ?_
-  intro i _
-  simpa [ProductFormulaData.evalFactor] using contDiff_exp_smul_const (P.generator H i)
+/-! ### Smoothness of the exponential -/
 
 /-- `t ↦ exp (t • Σ_i H_i)` is smooth. -/
 lemma contDiff_exp_sum {𝔸 : Type*} [NormedRing 𝔸]

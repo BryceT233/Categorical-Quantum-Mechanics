@@ -9,7 +9,7 @@ public import CQM1.TrotterError.Calculus
 public import CQM1.TrotterError.TimeOrderedExp
 public import CQM1.TrotterError.ErrorTypes
 
-import CQM1.TrotterError.OneNormScaling
+import CQM1.TrotterError.ListProd
 
 /-!
 # Order conditions for Trotter error
@@ -21,12 +21,17 @@ side, so `τ^p` acts as `|τ|^p`.
 
 ## Main results
 
+* `IsOrderOf`: the `p`-th order condition `𝒮(t) = e^{tH} + O(t^{p+1})` (`prelim.tex:150`).
 * `orderCond_add`, `orderCond_mul`: the addition and multiplication rules.
 * `orderCond_deriv_iff`: `F = O(τ^{p+1})` iff `F 0 = 0` and `F' = O(τ^p)`.
 * `orderCond_integral_iff`: `F = O(τ^p)` iff `∫₀ᵗ F = O(t^{p+1})`.
 * `orderCond_exp_iff`: `F = G + O(τ^p)` iff `exp_T(∫₀ᵗ F) = exp_T(∫₀ᵗ G) + O(t^{p+1})`.
 * `monomial_integral_order`: the canonical nested integral of a monomial is `O(t^{Σp + Γ})`
   (`lem:monomial`).
+* `errorOrderCond_iff`: the additive / exponentiated / multiplicative order conditions are
+  all equivalent to the `p`-th order condition (`thm:error_order_cond`, order.tex:124).
+* `polynomial_isBigO_iff_coeffs_zero`: a polynomial of degree `< p` is `O(τ^p)` at `0` iff
+  its coefficients vanish (the order-condition cancellation step).
 
 All rules are stated for smooth generators (the paper's standing hypothesis "infinitely
 differentiable", order.tex:78).
@@ -39,7 +44,23 @@ differentiable", order.tex:78).
 namespace TrotterError
 
 open Asymptotics
+open TrotterError.List
 open scoped Topology ContDiff algebraMap
+
+/-! ### The `p`-th order condition (`P.IsOrderOf`) -/
+
+namespace ProductFormulaData
+
+open NormedSpace
+
+/-- `P` is a `p`-th order formula on summands `H` if `‖𝒮(t) − e^{tH}‖ = O(t^{p+1})`
+as `t → 0` (`prelim.tex:150`). -/
+def IsOrderOf (P : ProductFormulaData) (p : ℕ) {𝔸 : Type*} [NormedRing 𝔸]
+    [NormedSpace ℝ 𝔸] (H : Fin P.Γ → 𝔸) : Prop :=
+  (fun t : ℝ => ‖P.eval H t - exp (t • ∑ γ : Fin P.Γ, H γ)‖)
+    =O[𝓝 (0 : ℝ)] (fun t : ℝ => t ^ (p + 1))
+
+end ProductFormulaData
 
 /-! ### Auxiliary order estimates -/
 
@@ -756,8 +777,7 @@ lemma contDiff_algebraMap {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ �
 
 /-- The real power monomial `τ ↦ (τ ^ k : 𝔸)` is smooth. -/
 lemma contDiff_algebraMap_pow {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸] (k : ℕ) :
-    ContDiff ℝ ∞ (fun τ : ℝ => (τ ^ k : 𝔸)) := by
-  exact contDiff_algebraMap.pow k
+    ContDiff ℝ ∞ (fun τ : ℝ => (τ ^ k : 𝔸)) := contDiff_algebraMap.pow k
 
 /-- The 𝔸-monomial `τ ↦ c * (τ ^ k : 𝔸)` is smooth. -/
 lemma contDiff_monomial {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
@@ -777,8 +797,7 @@ lemma iteratedDeriv_algebraMap_pow {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgeb
   rw [hfun]
   rw [iteratedDeriv_smul_const (𝕜 := ℝ) (𝔸 := ℝ) (F := 𝔸) (f := fun τ : ℝ => τ ^ m)
     (by fun_prop) (1 : 𝔸)]
-  rw [iteratedDeriv_pow]
-  rw [mul_smul, ← Algebra.algebraMap_eq_smul_one, map_pow]
+  rw [iteratedDeriv_pow, mul_smul, ← Algebra.algebraMap_eq_smul_one, map_pow]
 
 /-- The `j`-th iterated derivative at `0` of the degree-`< p` polynomial
 `τ ↦ ∑_{k < p} T k · τ^k` equals `(j! : ℝ) • T j`: only the `k = j` monomial survives. -/
@@ -792,8 +811,8 @@ lemma iteratedDeriv_polynomial_zero {𝔸 : Type*} [NormedRing 𝔸] [NormedAlge
     contDiff_algebraMap_pow (𝔸 := 𝔸) k |>.contDiffAt.of_le (mod_cast le_top)
   calc
     iteratedDeriv j (fun τ : ℝ => ∑ k ∈ Finset.range p, T k * (τ ^ k : 𝔸)) 0
-        = ∑ k ∈ Finset.range p, iteratedDeriv j (fun τ : ℝ => T k * (τ ^ k : 𝔸)) 0 := by
-            exact iteratedDeriv_fun_sum (I := Finset.range p) (fun k _ => hmonoAt k)
+        = ∑ k ∈ Finset.range p, iteratedDeriv j (fun τ : ℝ => T k * (τ ^ k : 𝔸)) 0 :=
+            iteratedDeriv_fun_sum (I := Finset.range p) (fun k _ => hmonoAt k)
     _ = ∑ k ∈ Finset.range p, T k * iteratedDeriv j (fun τ : ℝ => (τ ^ k : 𝔸)) 0 := by
             apply Finset.sum_congr rfl
             intro k _
@@ -815,8 +834,7 @@ lemma iteratedDeriv_polynomial_zero {𝔸 : Type*} [NormedRing 𝔸] [NormedAlge
               · simp [Nat.descFactorial_eq_zero_iff_lt.mpr hlt]
               · exact False.elim (hkj heq)
               · simp [zero_pow (Nat.sub_pos_of_lt hgt).ne']
-            rw [hsingle]
-            rw [Nat.descFactorial_self, Nat.sub_self, pow_zero, mul_smul_comm, mul_one]
+            rw [hsingle, Nat.descFactorial_self, Nat.sub_self, pow_zero, mul_smul_comm, mul_one]
 
 /-- A polynomial `Σ_{j < p} T j · τ^j` (coefficients `T j : 𝔸`, degree `< p`) is `O(τ^p)`
 at `0` iff all its coefficients vanish (the order-condition cancellation step of the paper's
@@ -856,5 +874,19 @@ theorem polynomial_isBigO_iff_coeffs_zero {𝔸 : Type*} [NormedRing 𝔸] [Norm
         rw [hT j (Finset.mem_range.mp hj), zero_mul]
       simp [hsum]
     simpa [hpoly] using hzero
+
+/-- `(-τ)^p = O(τ^p)` as `τ → 0`: the two functions have the same absolute value. -/
+lemma neg_pow_isBigO (p : ℕ) :
+    (fun τ : ℝ => (-τ) ^ p) =O[𝓝 (0 : ℝ)] (fun τ : ℝ => τ ^ p) := by
+  refine IsBigO.of_bound 1 ?_
+  filter_upwards with τ
+  rw [one_mul]
+  exact le_of_eq (by
+    rw [Real.norm_eq_abs ((-τ) ^ p), Real.norm_eq_abs (τ ^ p), abs_pow (-τ) p, abs_pow τ p,
+      abs_neg τ])
+
+/-- `τ ↦ -τ` tends to `0` as `τ → 0`. -/
+lemma tendsto_neg_nhds_zero : Filter.Tendsto (fun a : ℝ => -a) (𝓝 (0 : ℝ)) (𝓝 (0 : ℝ)) := by
+  simpa using continuous_neg.tendsto (0 : ℝ)
 
 end TrotterError

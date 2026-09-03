@@ -41,6 +41,8 @@ left-to-right order of `ProductFormulaData.evalIndexList`, so the prefix / suffi
 namespace TrotterError
 
 open NormedSpace
+open TrotterError.List
+open scoped Topology ContDiff
 
 variable {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸]
 
@@ -116,6 +118,15 @@ lemma continuous_factorProdOver (P : ProductFormulaData) (H : Fin P.Γ → 𝔸)
 lemma continuous_eval (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) :
     Continuous (fun t : ℝ => P.eval H t) :=
   continuous_factorProdOver P H P.evalIndexList
+
+/-- The product formula `t ↦ P.eval H t` is smooth. -/
+lemma contDiff_eval (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
+    [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸]
+    (H : Fin P.Γ → 𝔸) :
+    ContDiff ℝ ∞ (fun t : ℝ => P.eval H t) := by
+  refine contDiff_list_prod P.evalIndexList (fun i t => P.evalFactor H i t) ?_
+  intro i _
+  simpa [ProductFormulaData.evalFactor] using contDiff_exp_smul_const (P.generator H i)
 
 /-! ### Elementary `exp` identities (need `ℚ`-algebra) -/
 
@@ -298,6 +309,118 @@ lemma invPrefix_mul_eval [NormedAlgebra ℚ 𝔸] (P : ProductFormulaData) (H : 
       (prod_map_eq_take_mul_get_mul_drop (l := P.evalIndexList) (f := fun j => P.evalFactor H j t)
         i (evalIndexList_mem P i))
   rw [hdec, ← mul_assoc, ← mul_assoc, invPrefix_mul_prefix P H i t, one_mul]
+
+/-! ### Norm bounds for the prefix / point / suffix factors -/
+
+/-- The norm of `factorProdOver P H τ l` is bounded by `exp (|τ| · Σ_{j ∈ l} ‖H_π(j)‖)`. -/
+lemma norm_factorProdOver_le (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
+    [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [NormOneClass 𝔸] (H : Fin P.Γ → 𝔸) (τ : ℝ)
+    (l : List (Fin P.Υ × Fin P.Γ)) :
+    ‖factorProdOver P H τ l‖ ≤
+      Real.exp (|τ| * (l.map (fun j => ‖H (P.perm j.1 j.2)‖)).sum) := by
+  unfold factorProdOver
+  calc
+    ‖(l.map (fun j => P.evalFactor H j τ)).prod‖
+        ≤ (l.map (fun j => ‖P.evalFactor H j τ‖)).prod := by
+            simpa [List.map_map, Function.comp_def] using
+              List.norm_prod_le (l.map (fun j => P.evalFactor H j τ))
+    _ ≤ (l.map (fun j => Real.exp (|τ| * ‖H (P.perm j.1 j.2)‖))).prod := by
+            refine List.prod_map_le_prod_map₀ (f := fun j => ‖P.evalFactor H j τ‖)
+              (g := fun j => Real.exp (|τ| * ‖H (P.perm j.1 j.2)‖)) (s := l) ?_ ?_
+            · intro j _
+              exact norm_nonneg _
+            · intro j _
+              have hgen : ‖P.generator H j‖ ≤ ‖H (P.perm j.1 j.2)‖ := by
+                unfold ProductFormulaData.generator
+                rw [norm_smul, Real.norm_eq_abs]
+                exact mul_le_of_le_one_left (norm_nonneg _) (P.coeff_abs_le_one j)
+              calc
+                ‖P.evalFactor H j τ‖ = ‖exp (τ • P.generator H j)‖ := rfl
+                _ ≤ Real.exp (‖τ • P.generator H j‖) := norm_exp_le _
+                _ = Real.exp (|τ| * ‖P.generator H j‖) := by rw [norm_smul, Real.norm_eq_abs]
+                _ ≤ Real.exp (|τ| * ‖H (P.perm j.1 j.2)‖) :=
+                    Real.exp_le_exp.mpr (mul_le_mul_of_nonneg_left hgen (abs_nonneg τ))
+    _ = Real.exp ((l.map (fun j => |τ| * ‖H (P.perm j.1 j.2)‖)).sum) := by
+            rw [Real.exp_list_sum, List.map_map]
+            rfl
+    _ = Real.exp (|τ| * (l.map (fun j => ‖H (P.perm j.1 j.2)‖)).sum) := by
+            rw [List.sum_map_mul_left]
+
+/-- The norm of `prefixFactorProd · evalFactor` is bounded by
+`exp (|τ| · (prefix + point norms))`. -/
+lemma norm_prefixFactorProd_mul_evalFactor_le (P : ProductFormulaData) {𝔸 : Type*}
+    [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [NormOneClass 𝔸]
+    (H : Fin P.Γ → 𝔸) (i : Fin P.Υ × Fin P.Γ) (τ : ℝ) :
+    ‖prefixFactorProd P H i τ * P.evalFactor H i τ‖ ≤
+      Real.exp (|τ| * (((P.evalIndexList.take (P.evalIndexList.idxOf i)).map
+        (fun j => ‖H (P.perm j.1 j.2)‖)).sum + ‖H (P.perm i.1 i.2)‖)) := by
+  have hpref : ‖prefixFactorProd P H i τ‖ ≤
+      Real.exp (|τ| * ((P.evalIndexList.take (P.evalIndexList.idxOf i)).map
+        (fun j => ‖H (P.perm j.1 j.2)‖)).sum) := by
+    simpa [prefixFactorProd] using
+      norm_factorProdOver_le P H τ (P.evalIndexList.take (P.evalIndexList.idxOf i))
+  have hfac : ‖P.evalFactor H i τ‖ ≤ Real.exp (|τ| * ‖H (P.perm i.1 i.2)‖) := by
+    have hgen : ‖P.generator H i‖ ≤ ‖H (P.perm i.1 i.2)‖ := by
+      unfold ProductFormulaData.generator
+      rw [norm_smul, Real.norm_eq_abs]
+      exact mul_le_of_le_one_left (norm_nonneg _) (P.coeff_abs_le_one i)
+    calc
+      ‖P.evalFactor H i τ‖ = ‖exp (τ • P.generator H i)‖ := rfl
+      _ ≤ Real.exp (‖τ • P.generator H i‖) := norm_exp_le _
+      _ = Real.exp (|τ| * ‖P.generator H i‖) := by rw [norm_smul, Real.norm_eq_abs]
+      _ ≤ Real.exp (|τ| * ‖H (P.perm i.1 i.2)‖) :=
+          Real.exp_le_exp.mpr (mul_le_mul_of_nonneg_left hgen (abs_nonneg τ))
+  calc
+    ‖prefixFactorProd P H i τ * P.evalFactor H i τ‖
+        ≤ ‖prefixFactorProd P H i τ‖ * ‖P.evalFactor H i τ‖ := norm_mul_le _ _
+    _ ≤ Real.exp (|τ| * ((P.evalIndexList.take (P.evalIndexList.idxOf i)).map
+            (fun j => ‖H (P.perm j.1 j.2)‖)).sum) * Real.exp (|τ| * ‖H (P.perm i.1 i.2)‖) :=
+            mul_le_mul hpref hfac (norm_nonneg _) (Real.exp_pos _).le
+    _ = Real.exp (|τ| * (((P.evalIndexList.take (P.evalIndexList.idxOf i)).map
+            (fun j => ‖H (P.perm j.1 j.2)‖)).sum + ‖H (P.perm i.1 i.2)‖)) := by
+            rw [← Real.exp_add]
+            congr 1
+            ring
+
+/-- The coefficient-dropped norms of the prefix, the point `i`, and the suffix partition the total
+`Υ · Σ_γ ‖H γ‖`. -/
+lemma prefix_point_suffix_norm_sum_le (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
+    [NormedAlgebra ℝ 𝔸] (H : Fin P.Γ → 𝔸) (i : Fin P.Υ × Fin P.Γ) :
+    ((P.evalIndexList.take (P.evalIndexList.idxOf i)).map (fun j => ‖H (P.perm j.1 j.2)‖)).sum
+      + ‖H (P.perm i.1 i.2)‖
+      + (∑ k : Fin (P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)).length,
+          ‖suffixGenerators P H i k‖) ≤ (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖ := by
+  let g : Fin P.Υ × Fin P.Γ → ℝ := fun j => ‖H (P.perm j.1 j.2)‖
+  let drop := P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)
+  have hpart : (P.evalIndexList.map g).sum =
+      ((P.evalIndexList.take (P.evalIndexList.idxOf i)).map g).sum + g i + (drop.map g).sum := by
+    simpa [drop] using sum_map_eq_take_add_get_add_drop P.evalIndexList g i (evalIndexList_mem P i)
+  have hsuffix : (∑ k : Fin drop.length, ‖suffixGenerators P H i k‖) ≤ (drop.map g).sum := by
+    have hle : ∀ k : Fin drop.length, ‖suffixGenerators P H i k‖ ≤ g (drop.get k) := by
+      intro k
+      dsimp [suffixGenerators, g, drop, ProductFormulaData.generator]
+      rw [norm_smul, Real.norm_eq_abs]
+      exact mul_le_of_le_one_left (norm_nonneg _) (P.coeff_abs_le_one (drop.get k))
+    calc
+      (∑ k : Fin drop.length, ‖suffixGenerators P H i k‖)
+          ≤ ∑ k : Fin drop.length, g (drop.get k) := Finset.sum_le_sum (fun k _ => hle k)
+      _ = (drop.map g).sum := by simp
+  have hfull : (P.evalIndexList.map g).sum = (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖ := by
+    calc
+      (P.evalIndexList.map g).sum = ∑ k : Fin P.evalIndexList.length, ‖fullGenerators P H k‖ := by
+        rw [← List.sum_ofFn]
+        congr 1
+        rw [← List.ofFn_getElem_eq_map P.evalIndexList g]
+        congr 1
+      _ = (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖ := sum_norm_fullGenerators_eq P H
+  calc
+    ((P.evalIndexList.take (P.evalIndexList.idxOf i)).map g).sum + g i +
+        (∑ k : Fin drop.length, ‖suffixGenerators P H i k‖)
+        ≤ ((P.evalIndexList.take (P.evalIndexList.idxOf i)).map g).sum + g i +
+            (drop.map g).sum := by
+            linarith [hsuffix]
+    _ = (P.evalIndexList.map g).sum := by rw [hpart]
+    _ = (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖ := hfull
 
 /-- `d/dt 𝒮 = ℱ · 𝒮` (`type.tex:49`). -/
 theorem eval_hasDerivAt_exponentiated [NormedAlgebra ℚ 𝔸] (P : ProductFormulaData)

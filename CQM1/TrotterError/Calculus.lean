@@ -14,8 +14,10 @@ import Mathlib.Analysis.Calculus.IteratedDeriv.Lemmas
 /-!
 # Calculus for normed algebra exponentials
 
-Generic calculus lemmas for the exponential `NormedSpace.exp` in a normed algebra,
-used in the Trotter error theory (arXiv:1912.08854).
+Generic calculus lemmas for the exponential `NormedSpace.exp` in a normed algebra, together
+with the general ℝ-algebra scalar/commutativity lemmas and the `Fin` / `finAntidiagonal` /
+multinomial reindexing machinery they use, shared across the Trotter error theory
+(arXiv:1912.08854).
 
 ## Main results
 
@@ -757,9 +759,7 @@ lemma pow_smul_eq_smul_mul {𝔸 : Type*} [Ring 𝔸] [Algebra ℝ 𝔸] (j : �
 /-- `(r • a) * (c : 𝔸) = (r * c) • a` for scalars `r, c : ℝ`. -/
 lemma smul_mul_cast {𝔸 : Type*} [Ring 𝔸] [Algebra ℝ 𝔸] (r c : ℝ) (a : 𝔸) :
     (r • a) * (c : 𝔸) = (r * c) • a := by
-  rw [smul_eq_mul_right r a, smul_eq_mul_right (r * c) a]
-  rw [mul_assoc]
-  rw [← map_mul (algebraMap ℝ 𝔸) r c]
+  rw [smul_eq_mul_right r a, smul_eq_mul_right (r * c) a, mul_assoc, ← map_mul (algebraMap ℝ 𝔸) r c]
 
 /-- Combining the scalar factors of the single-layer remainder integrand. -/
 lemma scalar_combine (k j : ℕ) (d τ u : ℝ) (hd : d ≠ 0) :

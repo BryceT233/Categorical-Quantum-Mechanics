@@ -60,6 +60,7 @@ lemma contDiff_expSMulConj {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ �
     ((contDiff_exp_smul_const A).comp contDiff_neg)
 
 /-- The conjugation `t ↦ expSMulConj A Y t` is continuous. -/
+@[fun_prop]
 lemma continuous_expSMulConj {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
     [CompleteSpace 𝔸] (A Y : 𝔸) :
     Continuous (fun t : ℝ => expSMulConj A Y t) :=
@@ -109,8 +110,7 @@ lemma iteratedDeriv_expSMulConj {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra 
   | succ j ih =>
       rw [iteratedDeriv_succ, ih]
       funext t
-      rw [(expSMulConj_hasDerivAt A (adPow A j X) t).deriv]
-      rw [adPow_succ]
+      rw [(expSMulConj_hasDerivAt A (adPow A j X) t).deriv, ad_pow_succ]
 
 /-- The `j`-th iterated derivative of `τ ↦ expSMulConj A X τ` at `0` is `adPow A j X`. -/
 theorem iteratedDeriv_expSMulConj_zero {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
