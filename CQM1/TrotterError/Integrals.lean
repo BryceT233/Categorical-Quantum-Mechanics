@@ -112,4 +112,40 @@ lemma intervalIntegral_one_sub_pow (p : ℕ) :
           show ((p + 1 : ℕ) : ℝ) = (p : ℝ) + 1 by norm_num]
         ring
 
+/-- `∫₀ᵗ C · |τ|^p / p! dτ = (C / p!) · t^{p+1}/(p+1)`, for `t ≥ 0`. -/
+lemma intervalIntegral_const_mul_abs_pow_div_factorial (C : ℝ) (p : ℕ) (t : ℝ) (ht : 0 ≤ t) :
+    ∫ τ in 0..t, C * |τ| ^ p / (Nat.factorial p : ℝ) =
+      (C / (Nat.factorial p : ℝ)) * (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) := by
+  calc
+    ∫ τ in 0..t, C * |τ| ^ p / (Nat.factorial p : ℝ)
+        = ∫ τ in 0..t, (C / (Nat.factorial p : ℝ)) * |τ| ^ p := by
+            apply intervalIntegral.integral_congr_uIoo
+            intro τ _
+            ring
+    _ = (C / (Nat.factorial p : ℝ)) * ∫ τ in 0..t, |τ| ^ p := by
+            rw [intervalIntegral.integral_const_mul]
+    _ = (C / (Nat.factorial p : ℝ)) * ∫ τ in 0..t, τ ^ p := by
+            congr 1
+            apply intervalIntegral.integral_congr_uIoo
+            intro τ hτ
+            have hτ_pos : 0 < τ := by simpa [Set.uIoo, min_eq_left ht] using hτ.1
+            change |τ| ^ p = τ ^ p
+            rw [abs_of_nonneg hτ_pos.le]
+    _ = (C / (Nat.factorial p : ℝ)) * (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) := by
+            congr 1
+            simp
+
+/-- `∫₀ᵗ (C · |τ|^p / p!) · E dτ = (C / p!) · E · t^{p+1}/(p+1)`, for `t ≥ 0` and any constant
+`E`. -/
+lemma intervalIntegral_const_mul_abs_pow_div_factorial_mul (C E : ℝ) (p : ℕ) (t : ℝ) (ht : 0 ≤ t) :
+    ∫ τ in 0..t, C * |τ| ^ p / (Nat.factorial p : ℝ) * E =
+      (C / (Nat.factorial p : ℝ)) * E * (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) := by
+  calc
+    ∫ τ in 0..t, C * |τ| ^ p / (Nat.factorial p : ℝ) * E
+        = (∫ τ in 0..t, C * |τ| ^ p / (Nat.factorial p : ℝ)) * E := by
+            rw [intervalIntegral.integral_mul_const]
+    _ = (C / (Nat.factorial p : ℝ)) * (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) * E := by
+            rw [intervalIntegral_const_mul_abs_pow_div_factorial C p t ht]
+    _ = (C / (Nat.factorial p : ℝ)) * E * (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) := by ring
+
 end TrotterError

@@ -253,4 +253,26 @@ theorem αCommConj_sum_le_αComm (P : ProductFormulaData) {𝔸 : Type*} [Normed
           (∑ γ' : Fin (p + 1) → Fin P.Γ, ‖nestedComm (H ∘ γ')‖) := by rw [hfiber]
     _ = (Nat.factorial p : ℝ) * (P.Υ : ℝ) ^ p * αComm p H := by rw [αComm]
 
+/-- The `α_comm` sum over the `evalIndexList`-ordered summands (rather than the raw
+`orderedSummands`) is bounded by `p! · Υ^p · α~_comm`. This is `αCommConj_sum_le_αComm` in the
+form the pointwise bounds use, via `orderedSummands (reverseStages P) H = orderedSummandsEval P
+H`. -/
+lemma sum_αCommConj_orderedSummandsEval_le (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
+    [Algebra ℝ 𝔸] (H : Fin P.Γ → 𝔸) (p : ℕ) :
+    (∑ γ : Fin P.Γ, αCommConj (orderedSummandsEval P H) (H γ) p) ≤
+      (Nat.factorial p : ℝ) * (P.Υ : ℝ) ^ p * αComm p H := by
+  rw [← orderedSummands_reverseStages P H]
+  exact αCommConj_sum_le_αComm (reverseStages P) H p
+
+/-- The commuting-scaling coefficient `2 Υ Σ_γ α_γ / p!` is bounded by `2 Υ^{p+1} α~_comm`
+(rep.tex:96-113): the last algebraic step shared by all four commuting-scaling bounds. -/
+lemma two_mul_commScaling_div_factorial_le (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
+    [Algebra ℝ 𝔸] (H : Fin P.Γ → 𝔸) (p : ℕ) :
+    (2 * (P.Υ : ℝ) * (∑ γ : Fin P.Γ, αCommConj (orderedSummandsEval P H) (H γ) p)) /
+        (Nat.factorial p : ℝ) ≤ 2 * (P.Υ : ℝ) ^ (p + 1) * αComm p H := by
+  have h := sum_αCommConj_orderedSummandsEval_le P H p
+  have hpf : 0 < (Nat.factorial p : ℝ) := by positivity
+  rw [pow_succ, div_le_iff₀ hpf]
+  nlinarith
+
 end TrotterError

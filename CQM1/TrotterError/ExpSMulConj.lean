@@ -29,6 +29,8 @@ expansion and norm bounds of the single conjugation `exp (τ • A) * X * exp (-
 * `expSMulConj_taylor`: the single-layer Taylor expansion with integral remainder.
 * `norm_expSMulConj_le`, `norm_expSMulConj_remainder_le`: norm bounds for the conjugation
   and its remainder (theory.tex:151-155).
+* `norm_expSMulConj_le_of_skewAdjoint`: the conjugation has norm at most `‖X‖` when the
+  generator is anti-Hermitian (the exponential factors are unitary).
 
 **Assisted by Deepseek Harness**
 -/
@@ -218,6 +220,22 @@ theorem norm_expSMulConj_le {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℚ 
                   = ‖Y‖ * (Real.exp (|t| * ‖A‖) * Real.exp (|t| * ‖A‖)) := by ring
               _ = ‖Y‖ * Real.exp (|t| * ‖A‖ + |t| * ‖A‖) := by rw [Real.exp_add]
               _ = ‖Y‖ * Real.exp (2 * |t| * ‖A‖) := by ring_nf
+
+/-- The norm of a single conjugation is at most `‖X‖` when `A` is anti-Hermitian (the exponential
+factors are unitary). -/
+lemma norm_expSMulConj_le_of_skewAdjoint {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸]
+    [NormedAlgebra ℝ 𝔸] [StarRing 𝔸] [CStarRing 𝔸] [Nontrivial 𝔸] [StarModule ℝ 𝔸]
+    [CompleteSpace 𝔸] (A X : 𝔸) (hskew : star A = -A) (u : ℝ) :
+    ‖expSMulConj A X u‖ ≤ ‖X‖ := by
+  unfold expSMulConj
+  have h1 : ‖exp (u • A) * X‖ ≤ ‖X‖ := by
+    simpa [norm_exp_smul_of_skewAdjoint hskew u] using norm_mul_le (exp (u • A)) X
+  have h2 : ‖exp (-u • A)‖ ≤ 1 := (norm_exp_smul_of_skewAdjoint hskew (-u)).le
+  calc
+    ‖exp (u • A) * X * exp (-u • A)‖
+        ≤ ‖exp (u • A) * X‖ * ‖exp (-u • A)‖ := norm_mul_le _ _
+    _ ≤ ‖X‖ * 1 := mul_le_mul h1 h2 (norm_nonneg _) (norm_nonneg X)
+    _ = ‖X‖ := by rw [mul_one]
 
 /-- Norm bound of the single-layer remainder (theory.tex:151-155):
 `‖∫₀^τ expSMulConj A (adPow A p X) (τ-s) * s^{p-1}/(p-1)!‖ ≤

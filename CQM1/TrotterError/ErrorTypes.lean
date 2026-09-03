@@ -310,6 +310,17 @@ lemma invPrefix_mul_eval [NormedAlgebra ℚ 𝔸] (P : ProductFormulaData) (H : 
         i (evalIndexList_mem P i))
   rw [hdec, ← mul_assoc, ← mul_assoc, invPrefix_mul_prefix P H i t, one_mul]
 
+/-- The exponentiated generator `ℱ(t)` satisfies `ℱ(t) · 𝒮(t) = d/dt 𝒮(t)` (type.tex:48-49):
+the derivative `evalDeriv` written with the inverse prefix instead of the suffix. -/
+lemma exponentiatedGenerator_mul_eval_eq_evalDeriv [NormedAlgebra ℚ 𝔸] (P : ProductFormulaData)
+    (H : Fin P.Γ → 𝔸) (t : ℝ) :
+    exponentiatedGenerator P H t * P.eval H t = evalDeriv P H t := by
+  unfold exponentiatedGenerator evalDeriv
+  rw [Finset.sum_mul]
+  apply Finset.sum_congr rfl
+  intro i hi
+  rw [mul_assoc, invPrefix_mul_eval P H i t]
+
 /-! ### Norm bounds for the prefix / point / suffix factors -/
 
 /-- The norm of `factorProdOver P H τ l` is bounded by `exp (|τ| · Σ_{j ∈ l} ‖H_π(j)‖)`. -/
@@ -426,12 +437,8 @@ lemma prefix_point_suffix_norm_sum_le (P : ProductFormulaData) {𝔸 : Type*} [N
 theorem eval_hasDerivAt_exponentiated [NormedAlgebra ℚ 𝔸] (P : ProductFormulaData)
     (H : Fin P.Γ → 𝔸) (t : ℝ) :
     HasDerivAt (fun s : ℝ => P.eval H s) (exponentiatedGenerator P H t * P.eval H t) t := by
-  have hgen : exponentiatedGenerator P H t * P.eval H t = evalDeriv P H t := by
-    unfold exponentiatedGenerator evalDeriv
-    rw [Finset.sum_mul]
-    apply Finset.sum_congr rfl
-    intro i hi
-    rw [mul_assoc, invPrefix_mul_eval P H i t]
+  have hgen : exponentiatedGenerator P H t * P.eval H t = evalDeriv P H t :=
+    exponentiatedGenerator_mul_eval_eq_evalDeriv P H t
   simpa only [hgen] using (eval_hasDerivAt P H t)
 
 /-! ### The three error operators -/

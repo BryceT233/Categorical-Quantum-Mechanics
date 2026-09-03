@@ -17,5 +17,6 @@ public import CQM1.TrotterError.CommutatorScaling
 public import CQM1.TrotterError.MainTheorem
 public import CQM1.TrotterError.OneNormScaling
 public import CQM1.TrotterError.OrderCondition
+public import CQM1.TrotterError.Prefactor
 public import CQM1.TrotterError.ProductFormula
 public import CQM1.TrotterError.TimeOrderedExp

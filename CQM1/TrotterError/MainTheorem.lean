@@ -436,10 +436,6 @@ theorem trotter_error_bound_comm_scaling (P : ProductFormulaData) {𝔸 : Type*}
   have hS_le : ‖S‖ ≤ N := by
     dsimp [S, N]
     exact norm_sum_le univ H
-  have hsAlpha_le : sAlpha ≤ (Nat.factorial p : ℝ) * (P.Υ : ℝ) ^ p * αComm p H := by
-    dsimp [sAlpha]
-    rw [← orderedSummands_reverseStages P H]
-    exact αCommConj_sum_le_αComm (reverseStages P) H p
   have hR3 : ∀ τ, 0 ≤ τ → ‖additiveResidual P H τ‖ ≤ C * |τ| ^ p / (Nat.factorial p : ℝ) *
       Real.exp (|τ| * (P.Υ : ℝ) * N) := by
     intro τ hτ
@@ -447,28 +443,8 @@ theorem trotter_error_bound_comm_scaling (P : ProductFormulaData) {𝔸 : Type*}
   have hintegral (t : ℝ) (ht : 0 ≤ t) :
       ∫ τ in 0..t, C * |τ| ^ p / (Nat.factorial p : ℝ) * Real.exp (2 * t * (P.Υ : ℝ) * N) =
         (C / (Nat.factorial p : ℝ)) * Real.exp (2 * t * (P.Υ : ℝ) * N) *
-          (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) := by
-    calc
-      ∫ τ in 0..t, C * |τ| ^ p / (Nat.factorial p : ℝ) * Real.exp (2 * t * (P.Υ : ℝ) * N)
-          = ∫ τ in 0..t, (C / (Nat.factorial p : ℝ)) * Real.exp (2 * t * (P.Υ : ℝ) * N) *
-              |τ| ^ p := by
-              apply intervalIntegral.integral_congr_uIoo
-              intro τ _
-              ring
-      _ = (C / (Nat.factorial p : ℝ)) * Real.exp (2 * t * (P.Υ : ℝ) * N) *
-          ∫ τ in 0..t, |τ| ^ p := by
-              rw [intervalIntegral.integral_const_mul]
-      _ = (C / (Nat.factorial p : ℝ)) * Real.exp (2 * t * (P.Υ : ℝ) * N) * ∫ τ in 0..t, τ ^ p := by
-              congr 1
-              apply intervalIntegral.integral_congr_uIoo
-              intro τ hτ
-              have hτ_pos : 0 < τ := by simpa [Set.uIoo, min_eq_left ht] using hτ.1
-              change |τ| ^ p = τ ^ p
-              rw [abs_of_nonneg hτ_pos.le]
-      _ = (C / (Nat.factorial p : ℝ)) * Real.exp (2 * t * (P.Υ : ℝ) * N) *
-            (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) := by
-              congr 1
-              simp
+          (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) :=
+    intervalIntegral_const_mul_abs_pow_div_factorial_mul C (Real.exp (2 * t * (P.Υ : ℝ) * N)) p t ht
   intro t ht
   calc
     ‖P.eval H t - exp (t • S)‖
@@ -523,11 +499,7 @@ theorem trotter_error_bound_comm_scaling (P : ProductFormulaData) {𝔸 : Type*}
     _ ≤ 2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1) * αComm p H * t ^ (p + 1) *
           Real.exp (2 * t * (P.Υ : ℝ) * N) := by
             have hC_le : C / (Nat.factorial p : ℝ) ≤ 2 * (P.Υ : ℝ) ^ (p + 1) * αComm p H := by
-              have h := hsAlpha_le
-              have hpf : 0 < (Nat.factorial p : ℝ) := by positivity
-              dsimp [C, sAlpha]
-              rw [pow_succ, div_le_iff₀ hpf]
-              nlinarith
+              simpa [C, sAlpha] using two_mul_commScaling_div_factorial_le P H p
             have hnonneg : 0 ≤ (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) *
                 Real.exp (2 * t * (P.Υ : ℝ) * N) := by positivity
             have h1 := mul_le_mul_of_nonneg_right hC_le hnonneg
@@ -577,34 +549,13 @@ theorem trotter_error_bound_comm_scaling_of_skewAdjoint (P : ProductFormulaData)
   let sAlpha : ℝ := ∑ γ : Fin P.Γ, αCommConj (orderedSummandsEval P H) (H γ) p
   let C : ℝ := 2 * (P.Υ : ℝ) * sAlpha
   have hS_skew : star S = -S := sum_skewAdjoint H h_skew
-  have hsAlpha_le : sAlpha ≤ (Nat.factorial p : ℝ) * (P.Υ : ℝ) ^ p * αComm p H := by
-    dsimp [sAlpha]
-    rw [← orderedSummands_reverseStages P H]
-    exact αCommConj_sum_le_αComm (reverseStages P) H p
   have hR3 : ∀ τ, ‖additiveKernel P H τ‖ ≤ C * |τ| ^ p / (Nat.factorial p : ℝ) := by
     intro τ
     simpa [C, sAlpha] using norm_additiveKernel_le_of_skewAdjoint P H h_skew p hp h_order hΥ τ
   have hintegral (t : ℝ) (ht : 0 ≤ t) :
       ∫ τ in 0..t, C * |τ| ^ p / (Nat.factorial p : ℝ) =
-        (C / (Nat.factorial p : ℝ)) * (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) := by
-    calc
-      ∫ τ in 0..t, C * |τ| ^ p / (Nat.factorial p : ℝ)
-          = ∫ τ in 0..t, (C / (Nat.factorial p : ℝ)) * |τ| ^ p := by
-              apply intervalIntegral.integral_congr_uIoo
-              intro τ _
-              ring
-      _ = (C / (Nat.factorial p : ℝ)) * ∫ τ in 0..t, |τ| ^ p := by
-              rw [intervalIntegral.integral_const_mul]
-      _ = (C / (Nat.factorial p : ℝ)) * ∫ τ in 0..t, τ ^ p := by
-              congr 1
-              apply intervalIntegral.integral_congr_uIoo
-              intro τ hτ
-              have hτ_pos : 0 < τ := by simpa [Set.uIoo, min_eq_left ht] using hτ.1
-              dsimp
-              rw [abs_of_nonneg hτ_pos.le]
-      _ = (C / (Nat.factorial p : ℝ)) * (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) := by
-              congr 1
-              simp
+        (C / (Nat.factorial p : ℝ)) * (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) :=
+    intervalIntegral_const_mul_abs_pow_div_factorial C p t ht
   intro t ht
   calc
     ‖P.eval H t - exp (t • S)‖
@@ -638,11 +589,7 @@ theorem trotter_error_bound_comm_scaling_of_skewAdjoint (P : ProductFormulaData)
     _ = (C / (Nat.factorial p : ℝ)) * (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) := hintegral t ht
     _ ≤ 2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1) * αComm p H * t ^ (p + 1) := by
             have hC_le : C / (Nat.factorial p : ℝ) ≤ 2 * (P.Υ : ℝ) ^ (p + 1) * αComm p H := by
-              have h := hsAlpha_le
-              have hpf : 0 < (Nat.factorial p : ℝ) := by positivity
-              dsimp [C]
-              rw [pow_succ, div_le_iff₀ hpf]
-              nlinarith
+              simpa [C, sAlpha] using two_mul_commScaling_div_factorial_le P H p
             have hnonneg : 0 ≤ t ^ (p + 1) / ((p + 1 : ℕ) : ℝ) := by positivity
             have h1 := mul_le_mul_of_nonneg_right hC_le hnonneg
             calc
@@ -730,5 +677,246 @@ theorem trotter_number_comm_scaling (P : ProductFormulaData) {𝔸 : Type*} [Nor
               _ = C * (α * (t ^ (p + 1) * ((r : ℝ) ^ p)⁻¹)) := by
                       rw [natCast_mul_pow_div_pow_succ t r p hr_ne]
               _ = C * α * t ^ (p + 1) * ((r : ℝ) ^ p)⁻¹ := by ring
+
+/-! ### R3g-multiplicative: the multiplicative error commuting-scaling bound -/
+
+/-- The multiplicative error as an integral of the additive residual (rep.tex:115-123):
+`ℳ(t) = ∫₀ᵗ e^{-τH} ℛ(τ) dτ`. Follows from `errorType_multiplicative` together with the additive
+representation `𝒮(t) − e^{tH} = e^{tH} ∫₀ᵗ e^{-τH} ℛ(τ) dτ`. -/
+lemma multiplicativeError_eq_integral_residual (P : ProductFormulaData) {𝔸 : Type*}
+    [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸]
+    (H : Fin P.Γ → 𝔸) (t : ℝ) :
+    multiplicativeError P H t =
+      ∫ τ in 0..t, exp ((-τ) • (∑ γ : Fin P.Γ, H γ)) * additiveResidual P H τ := by
+  have hM : P.eval H t - exp (t • (∑ γ : Fin P.Γ, H γ)) =
+      exp (t • (∑ γ : Fin P.Γ, H γ)) * multiplicativeError P H t := by
+    rw [errorType_multiplicative P H t]
+    noncomm_ring
+  have hR : P.eval H t - exp (t • (∑ γ : Fin P.Γ, H γ)) =
+      exp (t • (∑ γ : Fin P.Γ, H γ)) *
+        ∫ τ in 0..t, exp ((-τ) • (∑ γ : Fin P.Γ, H γ)) * additiveResidual P H τ := by
+    rw [eval_sub_exp_eq_exp_mul_integral P H t]
+    congr 1
+    refine intervalIntegral.integral_congr_uIoo ?_
+    intro τ _
+    change exp ((-τ) • (∑ γ : Fin P.Γ, H γ)) * P.eval H τ * additiveKernel P H τ =
+      exp ((-τ) • (∑ γ : Fin P.Γ, H γ)) * additiveResidual P H τ
+    rw [mul_assoc, additiveResidual_eq_eval_mul_kernel P H τ]
+  have he : exp ((-t) • (∑ γ : Fin P.Γ, H γ)) * exp (t • (∑ γ : Fin P.Γ, H γ)) = 1 := by
+    simpa [neg_smul] using exp_neg_mul_self (t • (∑ γ : Fin P.Γ, H γ))
+  calc
+    multiplicativeError P H t
+        = exp ((-t) • (∑ γ : Fin P.Γ, H γ)) *
+            (exp (t • (∑ γ : Fin P.Γ, H γ)) * multiplicativeError P H t) := by
+            rw [← mul_assoc, he, one_mul]
+    _ = exp ((-t) • (∑ γ : Fin P.Γ, H γ)) * (P.eval H t - exp (t • (∑ γ : Fin P.Γ, H γ))) := by
+            rw [hM.symm]
+    _ = exp ((-t) • (∑ γ : Fin P.Γ, H γ)) * (exp (t • (∑ γ : Fin P.Γ, H γ)) *
+            ∫ τ in 0..t, exp ((-τ) • (∑ γ : Fin P.Γ, H γ)) * additiveResidual P H τ) := by
+            rw [hR]
+    _ = ∫ τ in 0..t, exp ((-τ) • (∑ γ : Fin P.Γ, H γ)) * additiveResidual P H τ := by
+            rw [← mul_assoc, he, one_mul]
+
+/-- `thm:trotter_error_comm_scaling` (general branch, multiplicative): the explicit pointwise
+commuting-scaling bound for the multiplicative error with exponential prefactor
+`exp (2 t Υ Σ ‖H_γ‖)`. -/
+theorem multiplicative_error_bound_comm_scaling (P : ProductFormulaData) {𝔸 : Type*}
+    [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [NormOneClass 𝔸]
+    (H : Fin P.Γ → 𝔸) (p : ℕ) (hp : 1 ≤ p) (h_order : P.IsOrderOf p H) (hΥ : 0 < P.Υ) :
+    ∀ t : ℝ, 0 ≤ t →
+      ‖multiplicativeError P H t‖ ≤
+        2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1) * αComm p H * t ^ (p + 1) *
+          Real.exp (2 * t * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) := by
+  let S : 𝔸 := ∑ γ : Fin P.Γ, H γ
+  let N : ℝ := ∑ γ : Fin P.Γ, ‖H γ‖
+  let sAlpha : ℝ := ∑ γ : Fin P.Γ, αCommConj (orderedSummandsEval P H) (H γ) p
+  let C : ℝ := 2 * (P.Υ : ℝ) * sAlpha
+  have hS_le : ‖S‖ ≤ N := by
+    dsimp [S, N]
+    exact norm_sum_le univ H
+  have hres : ∀ τ, 0 ≤ τ → ‖additiveResidual P H τ‖ ≤ C * |τ| ^ p / (Nat.factorial p : ℝ) *
+      Real.exp (|τ| * (P.Υ : ℝ) * N) := by
+    intro τ hτ
+    simpa [C, sAlpha, N] using norm_additiveResidual_le P H p hp h_order hΥ τ hτ
+  have hintegral (t : ℝ) (ht : 0 ≤ t) :
+      ∫ τ in 0..t, C * |τ| ^ p / (Nat.factorial p : ℝ) * Real.exp (2 * t * (P.Υ : ℝ) * N) =
+        (C / (Nat.factorial p : ℝ)) * Real.exp (2 * t * (P.Υ : ℝ) * N) *
+          (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) :=
+    intervalIntegral_const_mul_abs_pow_div_factorial_mul C (Real.exp (2 * t * (P.Υ : ℝ) * N)) p t ht
+  intro t ht
+  calc
+    ‖multiplicativeError P H t‖
+        = ‖∫ τ in 0..t, exp ((-τ) • S) * additiveResidual P H τ‖ := by
+            rw [multiplicativeError_eq_integral_residual P H t]
+    _ ≤ ∫ τ in 0..t, C * |τ| ^ p / (Nat.factorial p : ℝ) * Real.exp (2 * t * (P.Υ : ℝ) * N) := by
+            have hpoint : ∀ τ ∈ Set.Ioc (0 : ℝ) t,
+                ‖exp ((-τ) • S) * additiveResidual P H τ‖ ≤
+                  C * |τ| ^ p / (Nat.factorial p : ℝ) * Real.exp (2 * t * (P.Υ : ℝ) * N) := by
+              intro τ hτ
+              have hτpos : 0 ≤ τ := le_of_lt hτ.1
+              have hexpS : ‖exp ((-τ) • S)‖ ≤ Real.exp (|τ| * N) := by
+                calc
+                  ‖exp ((-τ) • S)‖ ≤ Real.exp (‖(-τ) • S‖) := norm_exp_le _
+                  _ = Real.exp (|τ| * ‖S‖) := by rw [norm_smul, Real.norm_eq_abs, abs_neg]
+                  _ ≤ Real.exp (|τ| * N) :=
+                      Real.exp_le_exp.mpr (mul_le_mul_of_nonneg_left hS_le (abs_nonneg _))
+              have hresτ : ‖additiveResidual P H τ‖ ≤ C * |τ| ^ p / (Nat.factorial p : ℝ) *
+                  Real.exp (|τ| * (P.Υ : ℝ) * N) := hres τ hτpos
+              have harg : |τ| * N + |τ| * (P.Υ : ℝ) * N ≤ 2 * t * (P.Υ : ℝ) * N := by
+                have hN : 0 ≤ N := by dsimp [N]; exact sum_nonneg (fun γ _ => norm_nonneg _)
+                have hΥR : 1 ≤ (P.Υ : ℝ) := by exact_mod_cast (Nat.succ_le_of_lt hΥ)
+                have harg' : |τ| + |τ| * (P.Υ : ℝ) ≤ 2 * t * (P.Υ : ℝ) := by
+                  rw [abs_of_nonneg hτpos]
+                  nlinarith [hτ.1.le, hτ.2, hΥR, ht]
+                nlinarith [mul_le_mul_of_nonneg_left harg' hN]
+              calc
+                ‖exp ((-τ) • S) * additiveResidual P H τ‖
+                    ≤ ‖exp ((-τ) • S)‖ * ‖additiveResidual P H τ‖ := norm_mul_le _ _
+                _ ≤ Real.exp (|τ| * N) * (C * |τ| ^ p / (Nat.factorial p : ℝ) *
+                      Real.exp (|τ| * (P.Υ : ℝ) * N)) :=
+                      mul_le_mul hexpS hresτ (norm_nonneg _) (Real.exp_pos _).le
+                _ = C * |τ| ^ p / (Nat.factorial p : ℝ) * (Real.exp (|τ| * N) *
+                      Real.exp (|τ| * (P.Υ : ℝ) * N)) := by ring
+                _ = C * |τ| ^ p / (Nat.factorial p : ℝ) * Real.exp (|τ| * N +
+                      |τ| * (P.Υ : ℝ) * N) := by rw [← Real.exp_add]
+                _ ≤ C * |τ| ^ p / (Nat.factorial p : ℝ) * Real.exp (2 * t * (P.Υ : ℝ) * N) := by
+                      refine mul_le_mul_of_nonneg_left ?_ ?_
+                      · exact Real.exp_le_exp.mpr harg
+                      · have hC_nonneg : 0 ≤ C := by
+                          dsimp [C, sAlpha]
+                          exact mul_nonneg (mul_nonneg zero_le_two (Nat.cast_nonneg _))
+                            (sum_nonneg (fun γ _ => αCommConj_nonneg _ _ _))
+                        exact div_nonneg (mul_nonneg hC_nonneg (pow_nonneg (abs_nonneg τ) p))
+                          (Nat.cast_nonneg _)
+            have hg_cont : Continuous (fun τ : ℝ => C * |τ| ^ p / (Nat.factorial p : ℝ) *
+                Real.exp (2 * t * (P.Υ : ℝ) * N)) := by fun_prop
+            exact intervalIntegral.norm_integral_le_of_norm_le ht
+              (by filter_upwards with τ hτ; exact hpoint τ hτ) (hg_cont.intervalIntegrable 0 t)
+    _ = (C / (Nat.factorial p : ℝ)) * Real.exp (2 * t * (P.Υ : ℝ) * N) *
+          (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) := hintegral t ht
+    _ ≤ 2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1) * αComm p H * t ^ (p + 1) *
+          Real.exp (2 * t * (P.Υ : ℝ) * N) := by
+            have hC_le : C / (Nat.factorial p : ℝ) ≤ 2 * (P.Υ : ℝ) ^ (p + 1) * αComm p H := by
+              simpa [C, sAlpha] using two_mul_commScaling_div_factorial_le P H p
+            have hnonneg : 0 ≤ (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) *
+                Real.exp (2 * t * (P.Υ : ℝ) * N) := by positivity
+            have h1 := mul_le_mul_of_nonneg_right hC_le hnonneg
+            calc
+              (C / (Nat.factorial p : ℝ)) * Real.exp (2 * t * (P.Υ : ℝ) * N) *
+                  (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ))
+                  = (C / (Nat.factorial p : ℝ)) * ((t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) *
+                      Real.exp (2 * t * (P.Υ : ℝ) * N)) := by ring
+              _ ≤ (2 * (P.Υ : ℝ) ^ (p + 1) * αComm p H) * ((t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) *
+                    Real.exp (2 * t * (P.Υ : ℝ) * N)) := h1
+              _ = 2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1) * αComm p H * t ^ (p + 1) *
+                    Real.exp (2 * t * (P.Υ : ℝ) * N) := by ring
+
+/-- `thm:trotter_error_comm_scaling` (general branch, multiplicative): the multiplicative-error
+commuting-scaling bound as `t → ∞`. -/
+theorem multiplicative_error_comm_scaling (P : ProductFormulaData) {𝔸 : Type*}
+    [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [NormOneClass 𝔸]
+    (H : Fin P.Γ → 𝔸) (p : ℕ) (hp : 1 ≤ p) (h_order : P.IsOrderOf p H) (hΥ : 0 < P.Υ) :
+    (fun t : ℝ ↦ ‖multiplicativeError P H t‖) =O[Filter.atTop]
+      (fun t : ℝ ↦ αComm p H * t ^ (p + 1) *
+        Real.exp (2 * t * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖)) := by
+  have hα : 0 ≤ αComm p H := αComm_nonneg p H
+  refine IsBigO.of_bound (2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1)) ?_
+  filter_upwards [Filter.eventually_ge_atTop 0] with t ht
+  rw [Real.norm_of_nonneg (norm_nonneg _),
+    Real.norm_of_nonneg (mul_nonneg (mul_nonneg hα (pow_nonneg ht (p + 1))) (Real.exp_pos _).le)]
+  calc
+    ‖multiplicativeError P H t‖
+        ≤ 2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1) * αComm p H * t ^ (p + 1) *
+            Real.exp (2 * t * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) :=
+            multiplicative_error_bound_comm_scaling P H p hp h_order hΥ t ht
+    _ = (2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1)) *
+          (αComm p H * t ^ (p + 1) * Real.exp (2 * t * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖)) := by ring
+
+/-- `thm:trotter_error_comm_scaling` (anti-Hermitian branch, multiplicative): the multiplicative
+error pointwise commuting-scaling bound, valid for all `t ≥ 0` (no exponential prefactor). -/
+theorem multiplicative_error_bound_comm_scaling_of_skewAdjoint (P : ProductFormulaData) {𝔸 : Type*}
+    [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [NormOneClass 𝔸]
+    [StarRing 𝔸] [CStarRing 𝔸] [Nontrivial 𝔸] [StarModule ℝ 𝔸] (H : Fin P.Γ → 𝔸)
+    (h_skew : ∀ γ, star (H γ) = -(H γ)) (p : ℕ) (hp : 1 ≤ p) (h_order : P.IsOrderOf p H)
+    (hΥ : 0 < P.Υ) :
+    ∀ t : ℝ, 0 ≤ t →
+      ‖multiplicativeError P H t‖ ≤
+        2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1) * αComm p H * t ^ (p + 1) := by
+  let S : 𝔸 := ∑ γ : Fin P.Γ, H γ
+  let sAlpha : ℝ := ∑ γ : Fin P.Γ, αCommConj (orderedSummandsEval P H) (H γ) p
+  let C : ℝ := 2 * (P.Υ : ℝ) * sAlpha
+  have hS_skew : star S = -S := sum_skewAdjoint H h_skew
+  have hkernel : ∀ τ, ‖additiveKernel P H τ‖ ≤ C * |τ| ^ p / (Nat.factorial p : ℝ) := by
+    intro τ
+    simpa [C, sAlpha] using norm_additiveKernel_le_of_skewAdjoint P H h_skew p hp h_order hΥ τ
+  have hintegral (t : ℝ) (ht : 0 ≤ t) :
+      ∫ τ in 0..t, C * |τ| ^ p / (Nat.factorial p : ℝ) =
+        (C / (Nat.factorial p : ℝ)) * (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) :=
+    intervalIntegral_const_mul_abs_pow_div_factorial C p t ht
+  intro t ht
+  calc
+    ‖multiplicativeError P H t‖
+        = ‖∫ τ in 0..t, exp ((-τ) • S) * additiveResidual P H τ‖ := by
+            rw [multiplicativeError_eq_integral_residual P H t]
+    _ = ‖∫ τ in 0..t, (exp ((-τ) • S) * P.eval H τ) * additiveKernel P H τ‖ := by
+            congr 1
+            refine intervalIntegral.integral_congr_uIoo ?_
+            intro τ _
+            change exp ((-τ) • S) * additiveResidual P H τ =
+              (exp ((-τ) • S) * P.eval H τ) * additiveKernel P H τ
+            rw [additiveResidual_eq_eval_mul_kernel P H τ, ← mul_assoc]
+    _ ≤ ∫ τ in 0..t, C * |τ| ^ p / (Nat.factorial p : ℝ) := by
+            have hpoint : ∀ τ ∈ Set.Ioc (0 : ℝ) t,
+                ‖(exp ((-τ) • S) * P.eval H τ) * additiveKernel P H τ‖ ≤
+                  C * |τ| ^ p / (Nat.factorial p : ℝ) := by
+              intro τ hτ
+              have hfac : ‖exp ((-τ) • S) * P.eval H τ‖ ≤ 1 := by
+                calc
+                  ‖exp ((-τ) • S) * P.eval H τ‖ ≤ ‖exp ((-τ) • S)‖ * ‖P.eval H τ‖ := norm_mul_le _ _
+                  _ = 1 * ‖P.eval H τ‖ := by rw [norm_exp_smul_of_skewAdjoint hS_skew (-τ)]
+                  _ = ‖P.eval H τ‖ := one_mul _
+                  _ ≤ 1 := norm_eval_le_one_of_skew P H h_skew τ
+              calc
+                ‖(exp ((-τ) • S) * P.eval H τ) * additiveKernel P H τ‖
+                    ≤ ‖exp ((-τ) • S) * P.eval H τ‖ * ‖additiveKernel P H τ‖ := norm_mul_le _ _
+                _ ≤ 1 * ‖additiveKernel P H τ‖ := mul_le_mul_of_nonneg_right hfac (norm_nonneg _)
+                _ = ‖additiveKernel P H τ‖ := one_mul _
+                _ ≤ C * |τ| ^ p / (Nat.factorial p : ℝ) := hkernel τ
+            have hg_cont : Continuous (fun τ : ℝ => C * |τ| ^ p / (Nat.factorial p : ℝ)) := by
+              fun_prop
+            exact intervalIntegral.norm_integral_le_of_norm_le ht
+              (by filter_upwards with τ hτ; exact hpoint τ hτ) (hg_cont.intervalIntegrable 0 t)
+    _ = (C / (Nat.factorial p : ℝ)) * (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) := hintegral t ht
+    _ ≤ 2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1) * αComm p H * t ^ (p + 1) := by
+            have hC_le : C / (Nat.factorial p : ℝ) ≤ 2 * (P.Υ : ℝ) ^ (p + 1) * αComm p H := by
+              simpa [C, sAlpha] using two_mul_commScaling_div_factorial_le P H p
+            have hnonneg : 0 ≤ t ^ (p + 1) / ((p + 1 : ℕ) : ℝ) := by positivity
+            have h1 := mul_le_mul_of_nonneg_right hC_le hnonneg
+            calc
+              C / (Nat.factorial p : ℝ) * (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ))
+                  ≤ 2 * (P.Υ : ℝ) ^ (p + 1) * αComm p H *
+                      (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) := h1
+              _ = 2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1) * αComm p H * t ^ (p + 1) := by
+                      ring
+
+/-- `thm:trotter_error_comm_scaling` (anti-Hermitian branch, multiplicative): the
+multiplicative-error commuting-scaling bound as `t → ∞`. -/
+theorem multiplicative_error_comm_scaling_of_skewAdjoint (P : ProductFormulaData) {𝔸 : Type*}
+    [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [NormOneClass 𝔸]
+    [StarRing 𝔸] [CStarRing 𝔸] [Nontrivial 𝔸] [StarModule ℝ 𝔸] (H : Fin P.Γ → 𝔸)
+    (h_skew : ∀ γ, star (H γ) = -(H γ)) (p : ℕ) (hp : 1 ≤ p) (h_order : P.IsOrderOf p H)
+    (hΥ : 0 < P.Υ) :
+    (fun t : ℝ ↦ ‖multiplicativeError P H t‖) =O[Filter.atTop]
+      (fun t : ℝ ↦ αComm p H * t ^ (p + 1)) := by
+  have hα : 0 ≤ αComm p H := αComm_nonneg p H
+  refine IsBigO.of_bound (2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1)) ?_
+  filter_upwards [Filter.eventually_ge_atTop 0] with t ht
+  rw [Real.norm_of_nonneg (norm_nonneg _),
+    Real.norm_of_nonneg (mul_nonneg hα (pow_nonneg ht (p + 1)))]
+  calc
+    ‖multiplicativeError P H t‖
+        ≤ 2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1) * αComm p H * t ^ (p + 1) :=
+            multiplicative_error_bound_comm_scaling_of_skewAdjoint P H h_skew p hp h_order hΥ t ht
+    _ = (2 / ((p + 1 : ℕ) : ℝ) * (P.Υ : ℝ) ^ (p + 1)) * (αComm p H * t ^ (p + 1)) := by ring
 
 end TrotterError

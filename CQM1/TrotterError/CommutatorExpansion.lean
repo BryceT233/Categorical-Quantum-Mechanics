@@ -956,22 +956,6 @@ lemma norm_ofFn_drop_prod_le_one_of_skewAdjoint {s} {𝔸 : Type*} [NormedRing �
       rcases (List.mem_ofFn' (fun _ : Fin s => (1 : ℝ)) x).mp hx' with ⟨i, hi⟩
       rw [← hi]
 
-/-- The norm of a single conjugation is at most `‖X‖` when `A` is anti-Hermitian (the exponential
-factors are unitary). -/
-lemma norm_expSMulConj_le_of_skewAdjoint {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸]
-    [NormedAlgebra ℝ 𝔸] [StarRing 𝔸] [CStarRing 𝔸] [Nontrivial 𝔸] [StarModule ℝ 𝔸]
-    [CompleteSpace 𝔸] (A X : 𝔸) (hskew : star A = -A) (u : ℝ) :
-    ‖expSMulConj A X u‖ ≤ ‖X‖ := by
-  unfold expSMulConj
-  have h1 : ‖exp (u • A) * X‖ ≤ ‖X‖ := by
-    simpa [norm_exp_smul_of_skewAdjoint hskew u] using norm_mul_le (exp (u • A)) X
-  have h2 : ‖exp (-u • A)‖ ≤ 1 := (norm_exp_smul_of_skewAdjoint hskew (-u)).le
-  calc
-    ‖exp (u • A) * X * exp (-u • A)‖
-        ≤ ‖exp (u • A) * X‖ * ‖exp (-u • A)‖ := norm_mul_le _ _
-    _ ≤ ‖X‖ * 1 := mul_le_mul h1 h2 (norm_nonneg _) (norm_nonneg X)
-    _ = ‖X‖ := by rw [mul_one]
-
 /-- The norm of the integral in one skew-adjoint remainder summand is bounded by
 `‖X‖ · |τ|^(q+m) / (q · D)` (no exponential factor). -/
 lemma norm_conj_smul_integral_le_of_skew {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸]
