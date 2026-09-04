@@ -22,7 +22,7 @@ representations of the product formula `𝒮(t) = P.eval H t` relative to the id
 * *multiplicative*: `𝒮(t) = e^{tH} (1 + ℳ(t))` (`errorType_multiplicative`).
 
 The lexicographic order `(υ,γ) ≻ (υ',γ')` of the paper (`papers/type.tex`) is exactly the
-left-to-right order of `ProductFormulaData.evalIndexList`, so the prefix / suffix products
+left-to-right order of `evalIndexList`, so the prefix / suffix products
 `∏_{j ≻ i}`, `∏_{j ≤ i}` are implemented with `List.take` / `List.drop` at `List.idxOf i`.
 
 ## Main results
@@ -42,70 +42,82 @@ namespace TrotterError
 
 open NormedSpace
 open TrotterError.List
+open ProductFormulaData
 open scoped Topology ContDiff
 
 variable {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸]
+variable {Υ Γ : ℕ}
+variable (P : ProductFormulaData Υ Γ)
 
 /-! ### Basic ingredients -/
 
 /-- The ordered product `∏_{j ∈ l} e^{s a_j H_j}` of the product-formula factors over a sublist `l`
 of `evalIndexList`. -/
-noncomputable def factorProdOver (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
-    [NormedSpace ℝ 𝔸] (H : Fin P.Γ → 𝔸) (s : ℝ) (l : List (Fin P.Υ × Fin P.Γ)) : 𝔸 :=
+noncomputable def factorProdOver {Υ Γ : ℕ} (P : ProductFormulaData Υ Γ)
+    {𝔸 : Type*} [NormedRing 𝔸]
+    [NormedSpace ℝ 𝔸] (H : Fin Γ → 𝔸) (s : ℝ) (l : List (Fin Υ × Fin Γ)) : 𝔸 :=
   (l.map (fun j => P.evalFactor H j s)).prod
 
 /-- `∏_{j ≻ i}^{←} e^{t a_j H_j}`, the product of the factors strictly before `i`. -/
-noncomputable def prefixFactorProd (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
-    [NormedSpace ℝ 𝔸] (H : Fin P.Γ → 𝔸) (i : Fin P.Υ × Fin P.Γ) (t : ℝ) : 𝔸 :=
-  factorProdOver P H t (P.evalIndexList.take (P.evalIndexList.idxOf i))
+noncomputable def prefixFactorProd {Υ Γ : ℕ} (P : ProductFormulaData Υ Γ)
+    {𝔸 : Type*} [NormedRing 𝔸]
+    [NormedSpace ℝ 𝔸] (H : Fin Γ → 𝔸) (i : Fin Υ × Fin Γ) (t : ℝ) : 𝔸 :=
+  factorProdOver P H t ((evalIndexList Υ Γ).take ((evalIndexList Υ Γ).idxOf i))
 
 /-- `∏_{j ≺ i}^{←} e^{t a_j H_j}`, the product of the factors strictly after `i`. -/
-noncomputable def strictSuffixFactorProd (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
-    [NormedSpace ℝ 𝔸] (H : Fin P.Γ → 𝔸) (i : Fin P.Υ × Fin P.Γ) (t : ℝ) : 𝔸 :=
-  factorProdOver P H t (P.evalIndexList.drop (P.evalIndexList.idxOf i + 1))
+noncomputable def strictSuffixFactorProd {Υ Γ : ℕ} (P : ProductFormulaData Υ Γ)
+    {𝔸 : Type*} [NormedRing 𝔸]
+    [NormedSpace ℝ 𝔸] (H : Fin Γ → 𝔸) (i : Fin Υ × Fin Γ) (t : ℝ) : 𝔸 :=
+  factorProdOver P H t ((evalIndexList Υ Γ).drop ((evalIndexList Υ Γ).idxOf i + 1))
 
 /-- `∏_{j ≤ i}^{←} e^{t a_j H_j}`, the product of the factor `i` and everything after it. -/
-noncomputable abbrev suffixFactorProd (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
-    [NormedSpace ℝ 𝔸] (H : Fin P.Γ → 𝔸) (i : Fin P.Υ × Fin P.Γ) (t : ℝ) : 𝔸 :=
+noncomputable abbrev suffixFactorProd {Υ Γ : ℕ} (P : ProductFormulaData Υ Γ)
+    {𝔸 : Type*} [NormedRing 𝔸]
+    [NormedSpace ℝ 𝔸] (H : Fin Γ → 𝔸) (i : Fin Υ × Fin Γ) (t : ℝ) : 𝔸 :=
   P.evalFactor H i t * strictSuffixFactorProd P H i t
 
 /-- `∏_{j ≻ i}^{→} e^{-t a_j H_j}`, the inverse of `prefixFactorProd`. -/
-noncomputable def invPrefixFactorProd (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
-    [NormedSpace ℝ 𝔸] (H : Fin P.Γ → 𝔸) (i : Fin P.Υ × Fin P.Γ) (t : ℝ) : 𝔸 :=
-  factorProdOver P H (-t) ((P.evalIndexList.take (P.evalIndexList.idxOf i)).reverse)
+noncomputable def invPrefixFactorProd {Υ Γ : ℕ} (P : ProductFormulaData Υ Γ)
+    {𝔸 : Type*} [NormedRing 𝔸]
+    [NormedSpace ℝ 𝔸] (H : Fin Γ → 𝔸) (i : Fin Υ × Fin Γ) (t : ℝ) : 𝔸 :=
+  factorProdOver P H (-t) (((evalIndexList Υ Γ).take ((evalIndexList Υ Γ).idxOf i)).reverse)
 
 /-- `∏_{j ≺ i}^{→} e^{-t a_j H_j}`, the inverse of `strictSuffixFactorProd`. -/
-noncomputable def invStrictSuffixFactorProd (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
-    [NormedSpace ℝ 𝔸] (H : Fin P.Γ → 𝔸) (i : Fin P.Υ × Fin P.Γ) (t : ℝ) : 𝔸 :=
-  factorProdOver P H (-t) ((P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)).reverse)
+noncomputable def invStrictSuffixFactorProd {Υ Γ : ℕ} (P : ProductFormulaData Υ Γ)
+    {𝔸 : Type*} [NormedRing 𝔸]
+    [NormedSpace ℝ 𝔸] (H : Fin Γ → 𝔸) (i : Fin Υ × Fin Γ) (t : ℝ) : 𝔸 :=
+  factorProdOver P H (-t) (((evalIndexList Υ Γ).drop ((evalIndexList Υ Γ).idxOf i + 1)).reverse)
 
 /-- `factorProdOver` over the full index list is `eval`. -/
-lemma factorProdOver_evalIndexList (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
-    [NormedSpace ℝ 𝔸] (H : Fin P.Γ → 𝔸) (τ : ℝ) :
-    factorProdOver P H τ (P.evalIndexList) = P.eval H τ := rfl
+lemma factorProdOver_evalIndexList
+    {𝔸 : Type*} [NormedRing 𝔸]
+    [NormedSpace ℝ 𝔸] (H : Fin Γ → 𝔸) (τ : ℝ) :
+    factorProdOver P H τ (evalIndexList Υ Γ) = P.eval H τ := rfl
 
 /-- `evalIndexList` has no duplicates. -/
-lemma evalIndexList_nodup (P : ProductFormulaData) : P.evalIndexList.Nodup :=
-  (List.nodup_reverse.mpr (List.nodup_finRange P.Υ)).product
-    (List.nodup_reverse.mpr (List.nodup_finRange P.Γ))
+lemma evalIndexList_nodup : (evalIndexList Υ Γ).Nodup :=
+  (List.nodup_reverse.mpr (List.nodup_finRange Υ)).product
+    (List.nodup_reverse.mpr (List.nodup_finRange Γ))
 
-/-- Every factor index `i : Fin P.Υ × Fin P.Γ` occurs in `evalIndexList`. -/
-lemma evalIndexList_mem (P : ProductFormulaData) (i : Fin P.Υ × Fin P.Γ) : i ∈ P.evalIndexList := by
+/-- Every factor index `i : Fin Υ × Fin Γ` occurs in `evalIndexList`. -/
+lemma evalIndexList_mem (i : Fin Υ × Fin Γ) : i ∈ evalIndexList Υ Γ := by
   rcases i with ⟨a, b⟩
-  simp [ProductFormulaData.evalIndexList]
+  simp [evalIndexList]
 
 /-! ### Continuity of the building blocks -/
 
 /-- Each factor `t ↦ P.evalFactor H i t` is continuous. -/
 @[fun_prop]
-lemma continuous_evalFactor (P : ProductFormulaData) (H : Fin P.Γ → 𝔸)
-    (i : Fin P.Υ × Fin P.Γ) : Continuous (fun t : ℝ => P.evalFactor H i t) := by
+lemma continuous_evalFactor
+    (H : Fin Γ → 𝔸)
+    (i : Fin Υ × Fin Γ) : Continuous (fun t : ℝ => P.evalFactor H i t) := by
   simpa [ProductFormulaData.evalFactor] using continuous_exp_smul_const (P.generator H i)
 
 /-- `s ↦ factorProdOver P H s l` is continuous. -/
 @[fun_prop]
-lemma continuous_factorProdOver (P : ProductFormulaData) (H : Fin P.Γ → 𝔸)
-    (l : List (Fin P.Υ × Fin P.Γ)) : Continuous (fun s : ℝ => factorProdOver P H s l) := by
+lemma continuous_factorProdOver
+    (H : Fin Γ → 𝔸)
+    (l : List (Fin Υ × Fin Γ)) : Continuous (fun s : ℝ => factorProdOver P H s l) := by
   unfold factorProdOver
   induction l with
   | nil => simpa using (continuous_const : Continuous (fun _ : ℝ => (1 : 𝔸)))
@@ -115,16 +127,18 @@ lemma continuous_factorProdOver (P : ProductFormulaData) (H : Fin P.Γ → 𝔸)
 
 /-- The product formula `t ↦ P.eval H t` is continuous. -/
 @[fun_prop]
-lemma continuous_eval (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) :
+lemma continuous_eval
+    (H : Fin Γ → 𝔸) :
     Continuous (fun t : ℝ => P.eval H t) :=
-  continuous_factorProdOver P H P.evalIndexList
+  continuous_factorProdOver P H (evalIndexList Υ Γ)
 
 /-- The product formula `t ↦ P.eval H t` is smooth. -/
-lemma contDiff_eval (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
+lemma contDiff_eval
+    {𝔸 : Type*} [NormedRing 𝔸]
     [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸]
-    (H : Fin P.Γ → 𝔸) :
+    (H : Fin Γ → 𝔸) :
     ContDiff ℝ ∞ (fun t : ℝ => P.eval H t) := by
-  refine contDiff_list_prod P.evalIndexList (fun i t => P.evalFactor H i t) ?_
+  refine contDiff_list_prod (evalIndexList Υ Γ) (fun i t => P.evalFactor H i t) ?_
   intro i _
   simpa [ProductFormulaData.evalFactor] using contDiff_exp_smul_const (P.generator H i)
 
@@ -151,39 +165,44 @@ lemma exp_smul_commute_self (A : 𝔸) (s : ℝ) : Commute (exp (s • A)) A :=
 
 omit [CompleteSpace 𝔸] in
 /-- The factor `e^{t a_i H_i}` commutes with its generator `a_i H_i`. -/
-lemma evalFactor_commute_coeffOp (P : ProductFormulaData) (H : Fin P.Γ → 𝔸)
-    (i : Fin P.Υ × Fin P.Γ) (t : ℝ) : P.evalFactor H i t * (P.generator H i) =
+lemma evalFactor_commute_coeffOp
+    (H : Fin Γ → 𝔸)
+    (i : Fin Υ × Fin Γ) (t : ℝ) : P.evalFactor H i t * (P.generator H i) =
       (P.generator H i) * P.evalFactor H i t := exp_smul_commute_self (P.generator H i) t
 
 /-! ### The first derivative of the product formula -/
 
 /-- The derivative of a single factor: `d/dt e^{t a_i H_i} = (a_i H_i) · e^{t a_i H_i}`. -/
-lemma evalFactor_hasDerivAt (P : ProductFormulaData) (H : Fin P.Γ → 𝔸)
-    (i : Fin P.Υ × Fin P.Γ) (t : ℝ) :
+lemma evalFactor_hasDerivAt
+    (H : Fin Γ → 𝔸)
+    (i : Fin Υ × Fin Γ) (t : ℝ) :
     HasDerivAt (fun s : ℝ => P.evalFactor H i s)
       ((P.generator H i) * P.evalFactor H i t) t := by
   simpa [ProductFormulaData.evalFactor] using hasDerivAt_exp_smul_const' (P.generator H i) t
 
 /-- The position-indexed derivative sum of the product formula. -/
-noncomputable def posDerivSum (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) (t : ℝ) : 𝔸 :=
-  ∑ k : Fin P.evalIndexList.length,
-    ((P.evalIndexList.take (k : ℕ)).map (fun i => P.evalFactor H i t)).prod
-      * ((P.generator H (P.evalIndexList.get k)) *
-        P.evalFactor H (P.evalIndexList.get k) t)
-      * ((P.evalIndexList.drop ((k : ℕ) + 1)).map (fun i => P.evalFactor H i t)).prod
+noncomputable def posDerivSum {Υ Γ : ℕ} (P : ProductFormulaData Υ Γ)
+    (H : Fin Γ → 𝔸) (t : ℝ) : 𝔸 :=
+  ∑ k : Fin (evalIndexList Υ Γ).length,
+    (((evalIndexList Υ Γ).take (k : ℕ)).map (fun i => P.evalFactor H i t)).prod
+      * ((P.generator H ((evalIndexList Υ Γ).get k)) *
+        P.evalFactor H ((evalIndexList Υ Γ).get k) t)
+      * (((evalIndexList Υ Γ).drop ((k : ℕ) + 1)).map (fun i => P.evalFactor H i t)).prod
 
 /-- The factor-indexed derivative of `P.eval H` at time `t` (the paper's `d/dt 𝒮`). -/
-noncomputable def evalDeriv (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) (t : ℝ) : 𝔸 :=
-  ∑ i : Fin P.Υ × Fin P.Γ,
+noncomputable def evalDeriv {Υ Γ : ℕ} (P : ProductFormulaData Υ Γ)
+    (H : Fin Γ → 𝔸) (t : ℝ) : 𝔸 :=
+  ∑ i : Fin Υ × Fin Γ,
     prefixFactorProd P H i t * (P.generator H i) * suffixFactorProd P H i t
 
 omit [CompleteSpace 𝔸] in
 /-- The position-indexed derivative sum equals the factor-indexed derivative sum. -/
-lemma posDerivSum_eq_evalDeriv (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) (t : ℝ) :
+lemma posDerivSum_eq_evalDeriv
+    (H : Fin Γ → 𝔸) (t : ℝ) :
     posDerivSum P H t = evalDeriv P H t := by
-  let l : List (Fin P.Υ × Fin P.Γ) := P.evalIndexList
-  have hnodup : l.Nodup := evalIndexList_nodup P
-  have hmem : ∀ i : Fin P.Υ × Fin P.Γ, i ∈ l := evalIndexList_mem P
+  let l : List (Fin Υ × Fin Γ) := evalIndexList Υ Γ
+  have hnodup : l.Nodup := evalIndexList_nodup
+  have hmem : ∀ i : Fin Υ × Fin Γ, i ∈ l := evalIndexList_mem
   have hpos : posDerivSum P H t = ∑ k : Fin l.length,
       ((l.take (k : ℕ)).map (fun i => P.evalFactor H i t)).prod *
         (P.generator H (l.get k)) *
@@ -192,19 +211,20 @@ lemma posDerivSum_eq_evalDeriv (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) 
     apply Finset.sum_congr rfl
     intro k hk
     calc
-      ((P.evalIndexList.take (k : ℕ)).map (fun i => P.evalFactor H i t)).prod *
-          ((P.generator H (P.evalIndexList.get k)) *
-            P.evalFactor H (P.evalIndexList.get k) t) *
-          ((P.evalIndexList.drop ((k : ℕ) + 1)).map (fun i => P.evalFactor H i t)).prod
-          = ((P.evalIndexList.take (k : ℕ)).map (fun i => P.evalFactor H i t)).prod *
-              (P.generator H (P.evalIndexList.get k)) *
-              (P.evalFactor H (P.evalIndexList.get k) t *
-                ((P.evalIndexList.drop ((k : ℕ) + 1)).map (fun i => P.evalFactor H i t)).prod) := by
+      (((evalIndexList Υ Γ).take (k : ℕ)).map (fun i => P.evalFactor H i t)).prod *
+          ((P.generator H ((evalIndexList Υ Γ).get k)) *
+            P.evalFactor H ((evalIndexList Υ Γ).get k) t) *
+          (((evalIndexList Υ Γ).drop ((k : ℕ) + 1)).map (fun i => P.evalFactor H i t)).prod
+          = (((evalIndexList Υ Γ).take (k : ℕ)).map (fun i => P.evalFactor H i t)).prod *
+              (P.generator H ((evalIndexList Υ Γ).get k)) *
+              (P.evalFactor H ((evalIndexList Υ Γ).get k) t *
+                (((evalIndexList Υ Γ).drop ((k : ℕ) + 1)).map
+                  (fun i => P.evalFactor H i t)).prod) := by
             noncomm_ring
-      _ = ((P.evalIndexList.take (k : ℕ)).map (fun i => P.evalFactor H i t)).prod *
-              (P.generator H (P.evalIndexList.get k)) *
-              ((P.evalIndexList.drop (k : ℕ)).map (fun i => P.evalFactor H i t)).prod := by
-            rw [← prod_drop_eq_get_mul P.evalIndexList (fun i => P.evalFactor H i t) k]
+      _ = (((evalIndexList Υ Γ).take (k : ℕ)).map (fun i => P.evalFactor H i t)).prod *
+              (P.generator H ((evalIndexList Υ Γ).get k)) *
+              (((evalIndexList Υ Γ).drop (k : ℕ)).map (fun i => P.evalFactor H i t)).prod := by
+            rw [← prod_drop_eq_get_mul (evalIndexList Υ Γ) (fun i => P.evalFactor H i t) k]
   have hreindex := sum_get_eq_sum_idxOf (hnodup := hnodup) (hmem := hmem)
     (G := fun i j => ((l.take j).map (fun i => P.evalFactor H i t)).prod *
       (P.generator H i) * ((l.drop j).map (fun i => P.evalFactor H i t)).prod)
@@ -213,7 +233,7 @@ lemma posDerivSum_eq_evalDeriv (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) 
         ((l.take (k : ℕ)).map (fun i => P.evalFactor H i t)).prod *
           (P.generator H (l.get k)) *
           ((l.drop (k : ℕ)).map (fun i => P.evalFactor H i t)).prod := by simpa [l] using hpos
-    _ = ∑ i : Fin P.Υ × Fin P.Γ,
+    _ = ∑ i : Fin Υ × Fin Γ,
         ((l.take (l.idxOf i)).map (fun i => P.evalFactor H i t)).prod *
           (P.generator H i) *
           ((l.drop (l.idxOf i)).map (fun i => P.evalFactor H i t)).prod := by simpa using hreindex
@@ -222,19 +242,20 @@ lemma posDerivSum_eq_evalDeriv (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) 
           factorProdOver]
         apply Finset.sum_congr rfl
         intro i _
-        have hidx : P.evalIndexList.idxOf i < P.evalIndexList.length :=
-          List.idxOf_lt_length_iff.mpr (evalIndexList_mem P i)
-        rw [prod_drop_eq_get_mul (l := P.evalIndexList) (f := fun i => P.evalFactor H i t)
-          ⟨P.evalIndexList.idxOf i, hidx⟩, List.idxOf_get hidx]
+        have hidx : (evalIndexList Υ Γ).idxOf i < (evalIndexList Υ Γ).length :=
+          List.idxOf_lt_length_iff.mpr (evalIndexList_mem i)
+        rw [prod_drop_eq_get_mul (l := evalIndexList Υ Γ) (f := fun i => P.evalFactor H i t)
+          ⟨(evalIndexList Υ Γ).idxOf i, hidx⟩, List.idxOf_get hidx]
 
 /-- The first derivative of the product formula (`d/dt 𝒮` in `type.tex:47-48`). -/
-theorem eval_hasDerivAt (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) (t : ℝ) :
+theorem eval_hasDerivAt
+    (H : Fin Γ → 𝔸) (t : ℝ) :
     HasDerivAt (fun s : ℝ => P.eval H s) (evalDeriv P H t) t := by
   have hpos : HasDerivAt (fun s : ℝ => P.eval H s) (posDerivSum P H t) t := by
-    have h := hasDerivAt_list_prod P.evalIndexList (fun i => P.evalFactor H i)
+    have h := hasDerivAt_list_prod (evalIndexList Υ Γ) (fun i => P.evalFactor H i)
       (fun i s => (P.generator H i) * P.evalFactor H i s)
       (fun i _ s => evalFactor_hasDerivAt P H i s) t
-    change HasDerivAt (fun s : ℝ => (P.evalIndexList.map (fun i => P.evalFactor H i s)).prod)
+    change HasDerivAt (fun s : ℝ => ((evalIndexList Υ Γ).map (fun i => P.evalFactor H i s)).prod)
       (posDerivSum P H t) t
     simpa only [posDerivSum] using h
   simpa only [evalDeriv, posDerivSum_eq_evalDeriv P H t] using hpos
@@ -243,77 +264,86 @@ theorem eval_hasDerivAt (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) (t : �
 
 /-- The additive residual `ℛ(t)` of `type.tex:17-20`: `ℛ(t) = 𝒮'(t) - H·𝒮(t)`, so that
 `d/dt 𝒮 = H·𝒮 + ℛ` (`type.tex:12`). -/
-noncomputable def additiveResidual (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) (t : ℝ) : 𝔸 :=
+noncomputable def additiveResidual {Υ Γ : ℕ} (P : ProductFormulaData Υ Γ)
+    (H : Fin Γ → 𝔸) (t : ℝ) : 𝔸 :=
   evalDeriv P H t - (∑ γ, H γ) * P.eval H t
 
 /-- `d/dt 𝒮 = H·𝒮 + additiveResidual` (`type.tex:12`). -/
-theorem eval_hasDerivAt_additive (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) (t : ℝ) :
+theorem eval_hasDerivAt_additive
+    (H : Fin Γ → 𝔸) (t : ℝ) :
     HasDerivAt (fun s : ℝ => P.eval H s) ((∑ γ, H γ) * P.eval H t + additiveResidual P H t) t := by
   have hkey : (∑ γ, H γ) * P.eval H t + additiveResidual P H t = evalDeriv P H t := by
     dsimp [additiveResidual]; abel
   simpa only [hkey] using (eval_hasDerivAt P H t)
 
 /-- The exponentiated generator `ℱ(t)` of `type.tex:54`. -/
-noncomputable def exponentiatedGenerator (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) (t : ℝ) : 𝔸 :=
-  ∑ i : Fin P.Υ × Fin P.Γ,
+noncomputable def exponentiatedGenerator {Υ Γ : ℕ} (P : ProductFormulaData Υ Γ)
+    (H : Fin Γ → 𝔸) (t : ℝ) : 𝔸 :=
+  ∑ i : Fin Υ × Fin Γ,
     prefixFactorProd P H i t * P.generator H i * invPrefixFactorProd P H i t
 
 omit [CompleteSpace 𝔸] in
 /-- `e^{-t A_j} = exp (-(t · a_j • H_j))`. -/
-lemma evalFactor_neg_eq_exp_neg (P : ProductFormulaData) (H : Fin P.Γ → 𝔸)
-    (j : Fin P.Υ × Fin P.Γ) (t : ℝ) :
+lemma evalFactor_neg_eq_exp_neg
+    (H : Fin Γ → 𝔸)
+    (j : Fin Υ × Fin Γ) (t : ℝ) :
     P.evalFactor H j (-t) = exp (-((t * P.coeff j) • H (P.perm j.1 j.2))) := by
   rw [ProductFormulaData.evalFactor, ProductFormulaData.generator, mul_smul, neg_smul]
 
 /-- `invPrefixFactorProd · prefixFactorProd = 1`. -/
-lemma invPrefix_mul_prefix [NormedAlgebra ℚ 𝔸] (P : ProductFormulaData) (H : Fin P.Γ → 𝔸)
-    (i : Fin P.Υ × Fin P.Γ) (t : ℝ) :
+lemma invPrefix_mul_prefix [NormedAlgebra ℚ 𝔸]
+    (H : Fin Γ → 𝔸)
+    (i : Fin Υ × Fin Γ) (t : ℝ) :
     invPrefixFactorProd P H i t * prefixFactorProd P H i t = 1 := by
   unfold invPrefixFactorProd prefixFactorProd factorProdOver
-  have h := List.prod_map_neg_exp_mul_prod (l := P.evalIndexList.take (P.evalIndexList.idxOf i))
+  have h := List.prod_map_neg_exp_mul_prod
+    (l := (evalIndexList Υ Γ).take ((evalIndexList Υ Γ).idxOf i))
     (A := fun j => (t * P.coeff j) • H (P.perm j.1 j.2))
   simpa [ProductFormulaData.evalFactor, ProductFormulaData.generator, mul_smul,
     evalFactor_neg_eq_exp_neg] using h
 
 /-- `strictSuffixFactorProd · invStrictSuffixFactorProd = 1`. -/
-lemma strictSuffix_mul_invStrictSuffix [NormedAlgebra ℚ 𝔸] (P : ProductFormulaData)
-    (H : Fin P.Γ → 𝔸) (i : Fin P.Υ × Fin P.Γ) (τ : ℝ) :
+lemma strictSuffix_mul_invStrictSuffix [NormedAlgebra ℚ 𝔸]
+    (H : Fin Γ → 𝔸) (i : Fin Υ × Fin Γ) (τ : ℝ) :
     strictSuffixFactorProd P H i τ * invStrictSuffixFactorProd P H i τ = 1 := by
   unfold strictSuffixFactorProd invStrictSuffixFactorProd factorProdOver
-  have h := List.prod_exp_mul_rev_neg (l := P.evalIndexList.drop (P.evalIndexList.idxOf i + 1))
+  have h := List.prod_exp_mul_rev_neg
+    (l := (evalIndexList Υ Γ).drop ((evalIndexList Υ Γ).idxOf i + 1))
     (A := fun j => (τ * P.coeff j) • H (P.perm j.1 j.2))
   simpa [ProductFormulaData.evalFactor, ProductFormulaData.generator, mul_smul,
     evalFactor_neg_eq_exp_neg] using h
 
 /-- `P.eval H τ · invStrictSuffixFactorProd = prefixFactorProd · evalFactor`. -/
-lemma eval_mul_invStrictSuffix [NormedAlgebra ℚ 𝔸] (P : ProductFormulaData) (H : Fin P.Γ → 𝔸)
-    (i : Fin P.Υ × Fin P.Γ) (τ : ℝ) :
+lemma eval_mul_invStrictSuffix [NormedAlgebra ℚ 𝔸]
+    (H : Fin Γ → 𝔸)
+    (i : Fin Υ × Fin Γ) (τ : ℝ) :
     P.eval H τ * invStrictSuffixFactorProd P H i τ =
       prefixFactorProd P H i τ * P.evalFactor H i τ := by
   have hdec : P.eval H τ = prefixFactorProd P H i τ * P.evalFactor H i τ *
       strictSuffixFactorProd P H i τ := by
     rw [← factorProdOver_evalIndexList P H τ]
     simpa only [prefixFactorProd, strictSuffixFactorProd, factorProdOver] using
-      (prod_map_eq_take_mul_get_mul_drop (l := P.evalIndexList) (f := fun j => P.evalFactor H j τ)
-        i (evalIndexList_mem P i))
+      (prod_map_eq_take_mul_get_mul_drop (l := evalIndexList Υ Γ) (f := fun j => P.evalFactor H j τ)
+        i (evalIndexList_mem i))
   rw [hdec, mul_assoc, strictSuffix_mul_invStrictSuffix P H i τ, mul_one]
 
 /-- `P.eval H τ · invPrefixFactorProd = suffixFactorProd`. -/
-lemma invPrefix_mul_eval [NormedAlgebra ℚ 𝔸] (P : ProductFormulaData) (H : Fin P.Γ → 𝔸)
-    (i : Fin P.Υ × Fin P.Γ) (t : ℝ) :
+lemma invPrefix_mul_eval [NormedAlgebra ℚ 𝔸]
+    (H : Fin Γ → 𝔸)
+    (i : Fin Υ × Fin Γ) (t : ℝ) :
     invPrefixFactorProd P H i t * P.eval H t = suffixFactorProd P H i t := by
   have hdec : P.eval H t = prefixFactorProd P H i t * P.evalFactor H i t *
       strictSuffixFactorProd P H i t := by
     rw [← factorProdOver_evalIndexList P H t]
     simpa only [prefixFactorProd, strictSuffixFactorProd, factorProdOver] using
-      (prod_map_eq_take_mul_get_mul_drop (l := P.evalIndexList) (f := fun j => P.evalFactor H j t)
-        i (evalIndexList_mem P i))
+      (prod_map_eq_take_mul_get_mul_drop (l := evalIndexList Υ Γ) (f := fun j => P.evalFactor H j t)
+        i (evalIndexList_mem i))
   rw [hdec, ← mul_assoc, ← mul_assoc, invPrefix_mul_prefix P H i t, one_mul]
 
 /-- The exponentiated generator `ℱ(t)` satisfies `ℱ(t) · 𝒮(t) = d/dt 𝒮(t)` (type.tex:48-49):
 the derivative `evalDeriv` written with the inverse prefix instead of the suffix. -/
-lemma exponentiatedGenerator_mul_eval_eq_evalDeriv [NormedAlgebra ℚ 𝔸] (P : ProductFormulaData)
-    (H : Fin P.Γ → 𝔸) (t : ℝ) :
+lemma exponentiatedGenerator_mul_eval_eq_evalDeriv [NormedAlgebra ℚ 𝔸]
+    (H : Fin Γ → 𝔸) (t : ℝ) :
     exponentiatedGenerator P H t * P.eval H t = evalDeriv P H t := by
   unfold exponentiatedGenerator evalDeriv
   rw [Finset.sum_mul]
@@ -324,9 +354,10 @@ lemma exponentiatedGenerator_mul_eval_eq_evalDeriv [NormedAlgebra ℚ 𝔸] (P :
 /-! ### Norm bounds for the prefix / point / suffix factors -/
 
 /-- The norm of `factorProdOver P H τ l` is bounded by `exp (|τ| · Σ_{j ∈ l} ‖H_π(j)‖)`. -/
-lemma norm_factorProdOver_le (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
-    [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [NormOneClass 𝔸] (H : Fin P.Γ → 𝔸) (τ : ℝ)
-    (l : List (Fin P.Υ × Fin P.Γ)) :
+lemma norm_factorProdOver_le
+    {𝔸 : Type*} [NormedRing 𝔸]
+    [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [NormOneClass 𝔸] (H : Fin Γ → 𝔸) (τ : ℝ)
+    (l : List (Fin Υ × Fin Γ)) :
     ‖factorProdOver P H τ l‖ ≤
       Real.exp (|τ| * (l.map (fun j => ‖H (P.perm j.1 j.2)‖)).sum) := by
   unfold factorProdOver
@@ -359,17 +390,18 @@ lemma norm_factorProdOver_le (P : ProductFormulaData) {𝔸 : Type*} [NormedRing
 
 /-- The norm of `prefixFactorProd · evalFactor` is bounded by
 `exp (|τ| · (prefix + point norms))`. -/
-lemma norm_prefixFactorProd_mul_evalFactor_le (P : ProductFormulaData) {𝔸 : Type*}
+lemma norm_prefixFactorProd_mul_evalFactor_le
+    {𝔸 : Type*}
     [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [NormOneClass 𝔸]
-    (H : Fin P.Γ → 𝔸) (i : Fin P.Υ × Fin P.Γ) (τ : ℝ) :
+    (H : Fin Γ → 𝔸) (i : Fin Υ × Fin Γ) (τ : ℝ) :
     ‖prefixFactorProd P H i τ * P.evalFactor H i τ‖ ≤
-      Real.exp (|τ| * (((P.evalIndexList.take (P.evalIndexList.idxOf i)).map
+      Real.exp (|τ| * ((((evalIndexList Υ Γ).take ((evalIndexList Υ Γ).idxOf i)).map
         (fun j => ‖H (P.perm j.1 j.2)‖)).sum + ‖H (P.perm i.1 i.2)‖)) := by
   have hpref : ‖prefixFactorProd P H i τ‖ ≤
-      Real.exp (|τ| * ((P.evalIndexList.take (P.evalIndexList.idxOf i)).map
+      Real.exp (|τ| * (((evalIndexList Υ Γ).take ((evalIndexList Υ Γ).idxOf i)).map
         (fun j => ‖H (P.perm j.1 j.2)‖)).sum) := by
     simpa [prefixFactorProd] using
-      norm_factorProdOver_le P H τ (P.evalIndexList.take (P.evalIndexList.idxOf i))
+      norm_factorProdOver_le P H τ ((evalIndexList Υ Γ).take ((evalIndexList Υ Γ).idxOf i))
   have hfac : ‖P.evalFactor H i τ‖ ≤ Real.exp (|τ| * ‖H (P.perm i.1 i.2)‖) := by
     have hgen : ‖P.generator H i‖ ≤ ‖H (P.perm i.1 i.2)‖ := by
       unfold ProductFormulaData.generator
@@ -384,10 +416,10 @@ lemma norm_prefixFactorProd_mul_evalFactor_le (P : ProductFormulaData) {𝔸 : T
   calc
     ‖prefixFactorProd P H i τ * P.evalFactor H i τ‖
         ≤ ‖prefixFactorProd P H i τ‖ * ‖P.evalFactor H i τ‖ := norm_mul_le _ _
-    _ ≤ Real.exp (|τ| * ((P.evalIndexList.take (P.evalIndexList.idxOf i)).map
+    _ ≤ Real.exp (|τ| * (((evalIndexList Υ Γ).take ((evalIndexList Υ Γ).idxOf i)).map
             (fun j => ‖H (P.perm j.1 j.2)‖)).sum) * Real.exp (|τ| * ‖H (P.perm i.1 i.2)‖) :=
             mul_le_mul hpref hfac (norm_nonneg _) (Real.exp_pos _).le
-    _ = Real.exp (|τ| * (((P.evalIndexList.take (P.evalIndexList.idxOf i)).map
+    _ = Real.exp (|τ| * ((((evalIndexList Υ Γ).take ((evalIndexList Υ Γ).idxOf i)).map
             (fun j => ‖H (P.perm j.1 j.2)‖)).sum + ‖H (P.perm i.1 i.2)‖)) := by
             rw [← Real.exp_add]
             congr 1
@@ -395,17 +427,21 @@ lemma norm_prefixFactorProd_mul_evalFactor_le (P : ProductFormulaData) {𝔸 : T
 
 /-- The coefficient-dropped norms of the prefix, the point `i`, and the suffix partition the total
 `Υ · Σ_γ ‖H γ‖`. -/
-lemma prefix_point_suffix_norm_sum_le (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
-    [NormedAlgebra ℝ 𝔸] (H : Fin P.Γ → 𝔸) (i : Fin P.Υ × Fin P.Γ) :
-    ((P.evalIndexList.take (P.evalIndexList.idxOf i)).map (fun j => ‖H (P.perm j.1 j.2)‖)).sum
+lemma prefix_point_suffix_norm_sum_le
+    {𝔸 : Type*} [NormedRing 𝔸]
+    [NormedAlgebra ℝ 𝔸] (H : Fin Γ → 𝔸) (i : Fin Υ × Fin Γ) :
+    (((evalIndexList Υ Γ).take ((evalIndexList Υ Γ).idxOf i)).map
+      (fun j => ‖H (P.perm j.1 j.2)‖)).sum
       + ‖H (P.perm i.1 i.2)‖
-      + (∑ k : Fin (P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)).length,
-          ‖suffixGenerators P H i k‖) ≤ (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖ := by
-  let g : Fin P.Υ × Fin P.Γ → ℝ := fun j => ‖H (P.perm j.1 j.2)‖
-  let drop := P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)
-  have hpart : (P.evalIndexList.map g).sum =
-      ((P.evalIndexList.take (P.evalIndexList.idxOf i)).map g).sum + g i + (drop.map g).sum := by
-    simpa [drop] using sum_map_eq_take_add_get_add_drop P.evalIndexList g i (evalIndexList_mem P i)
+      + (∑ k : Fin ((evalIndexList Υ Γ).drop ((evalIndexList Υ Γ).idxOf i + 1)).length,
+          ‖suffixGenerators P H i k‖) ≤ (Υ : ℝ) * ∑ γ : Fin Γ, ‖H γ‖ := by
+  let g : Fin Υ × Fin Γ → ℝ := fun j => ‖H (P.perm j.1 j.2)‖
+  let drop := (evalIndexList Υ Γ).drop ((evalIndexList Υ Γ).idxOf i + 1)
+  have hpart : ((evalIndexList Υ Γ).map g).sum =
+      (((evalIndexList Υ Γ).take ((evalIndexList Υ Γ).idxOf i)).map g).sum + g i +
+        (drop.map g).sum := by
+    simpa [drop] using
+      sum_map_eq_take_add_get_add_drop (evalIndexList Υ Γ) g i (evalIndexList_mem i)
   have hsuffix : (∑ k : Fin drop.length, ‖suffixGenerators P H i k‖) ≤ (drop.map g).sum := by
     have hle : ∀ k : Fin drop.length, ‖suffixGenerators P H i k‖ ≤ g (drop.get k) := by
       intro k
@@ -416,26 +452,27 @@ lemma prefix_point_suffix_norm_sum_le (P : ProductFormulaData) {𝔸 : Type*} [N
       (∑ k : Fin drop.length, ‖suffixGenerators P H i k‖)
           ≤ ∑ k : Fin drop.length, g (drop.get k) := Finset.sum_le_sum (fun k _ => hle k)
       _ = (drop.map g).sum := by simp
-  have hfull : (P.evalIndexList.map g).sum = (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖ := by
+  have hfull : ((evalIndexList Υ Γ).map g).sum = (Υ : ℝ) * ∑ γ : Fin Γ, ‖H γ‖ := by
     calc
-      (P.evalIndexList.map g).sum = ∑ k : Fin P.evalIndexList.length, ‖fullGenerators P H k‖ := by
+      ((evalIndexList Υ Γ).map g).sum =
+        ∑ k : Fin (evalIndexList Υ Γ).length, ‖fullGenerators P H k‖ := by
         rw [← List.sum_ofFn]
         congr 1
-        rw [← List.ofFn_getElem_eq_map P.evalIndexList g]
+        rw [← List.ofFn_getElem_eq_map (evalIndexList Υ Γ) g]
         congr 1
-      _ = (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖ := sum_norm_fullGenerators_eq P H
+      _ = (Υ : ℝ) * ∑ γ : Fin Γ, ‖H γ‖ := sum_norm_fullGenerators_eq P H
   calc
-    ((P.evalIndexList.take (P.evalIndexList.idxOf i)).map g).sum + g i +
+    (((evalIndexList Υ Γ).take ((evalIndexList Υ Γ).idxOf i)).map g).sum + g i +
         (∑ k : Fin drop.length, ‖suffixGenerators P H i k‖)
-        ≤ ((P.evalIndexList.take (P.evalIndexList.idxOf i)).map g).sum + g i +
+        ≤ (((evalIndexList Υ Γ).take ((evalIndexList Υ Γ).idxOf i)).map g).sum + g i +
             (drop.map g).sum := by
             linarith [hsuffix]
-    _ = (P.evalIndexList.map g).sum := by rw [hpart]
-    _ = (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖ := hfull
+    _ = ((evalIndexList Υ Γ).map g).sum := by rw [hpart]
+    _ = (Υ : ℝ) * ∑ γ : Fin Γ, ‖H γ‖ := hfull
 
 /-- `d/dt 𝒮 = ℱ · 𝒮` (`type.tex:49`). -/
-theorem eval_hasDerivAt_exponentiated [NormedAlgebra ℚ 𝔸] (P : ProductFormulaData)
-    (H : Fin P.Γ → 𝔸) (t : ℝ) :
+theorem eval_hasDerivAt_exponentiated [NormedAlgebra ℚ 𝔸]
+    (H : Fin Γ → 𝔸) (t : ℝ) :
     HasDerivAt (fun s : ℝ => P.eval H s) (exponentiatedGenerator P H t * P.eval H t) t := by
   have hgen : exponentiatedGenerator P H t * P.eval H t = evalDeriv P H t :=
     exponentiatedGenerator_mul_eval_eq_evalDeriv P H t
@@ -444,31 +481,36 @@ theorem eval_hasDerivAt_exponentiated [NormedAlgebra ℚ 𝔸] (P : ProductFormu
 /-! ### The three error operators -/
 
 /-- The additive kernel `𝒯(τ)` of `type.tex:33-35`. -/
-noncomputable def additiveKernel (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) : ℝ → 𝔸 := fun τ =>
-  (∑ i : Fin P.Υ × Fin P.Γ,
+noncomputable def additiveKernel {Υ Γ : ℕ} (P : ProductFormulaData Υ Γ)
+    (H : Fin Γ → 𝔸) : ℝ → 𝔸 := fun τ =>
+  (∑ i : Fin Υ × Fin Γ,
     invStrictSuffixFactorProd P H i τ * (P.generator H i) *
       strictSuffixFactorProd P H i τ)
-  - factorProdOver P H (-τ) (P.evalIndexList.reverse) * (∑ γ, H γ) *
-      factorProdOver P H τ (P.evalIndexList)
+  - factorProdOver P H (-τ) ((evalIndexList Υ Γ).reverse) * (∑ γ, H γ) *
+      factorProdOver P H τ (evalIndexList Υ Γ)
 
 /-- The exponentiated error `ℰ(τ) = ℱ(τ) - H` of `type.tex:62`. -/
-noncomputable def exponentiatedError (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) : ℝ → 𝔸 :=
+noncomputable def exponentiatedError {Υ Γ : ℕ} (P : ProductFormulaData Υ Γ)
+    (H : Fin Γ → 𝔸) : ℝ → 𝔸 :=
   fun τ => exponentiatedGenerator P H τ - (∑ γ, H γ)
 
 /-- The interaction-picture generator `τ ↦ e^{-τH} ℰ(τ) e^{τH}` used in `multiplicativeError`. -/
-noncomputable def interactionGenerator (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) : ℝ → 𝔸 :=
+noncomputable def interactionGenerator {Υ Γ : ℕ} (P : ProductFormulaData Υ Γ)
+    (H : Fin Γ → 𝔸) : ℝ → 𝔸 :=
   fun τ => exp ((-τ) • (∑ γ, H γ)) * exponentiatedError P H τ * exp (τ • (∑ γ, H γ))
 
 /-- The multiplicative error `ℳ(t)` of `type.tex:72`. -/
-noncomputable def multiplicativeError (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) (t : ℝ) : 𝔸 :=
+noncomputable def multiplicativeError {Υ Γ : ℕ} (P : ProductFormulaData Υ Γ)
+    (H : Fin Γ → 𝔸) (t : ℝ) : 𝔸 :=
   timeOrderedExp (interactionGenerator P H) 0 t - 1
 
 /-- `P.eval H τ · invFull = 1`, where `invFull = ∏^{→} e^{-τ a_j H_j}`. -/
-lemma eval_mul_invFull [NormedAlgebra ℚ 𝔸] (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) (τ : ℝ) :
-    P.eval H τ * factorProdOver P H (-τ) (P.evalIndexList.reverse) = 1 := by
+lemma eval_mul_invFull [NormedAlgebra ℚ 𝔸]
+    (H : Fin Γ → 𝔸) (τ : ℝ) :
+    P.eval H τ * factorProdOver P H (-τ) ((evalIndexList Υ Γ).reverse) = 1 := by
   rw [← factorProdOver_evalIndexList P H τ]
   unfold factorProdOver
-  have h := List.prod_exp_mul_rev_neg (l := P.evalIndexList)
+  have h := List.prod_exp_mul_rev_neg (l := evalIndexList Υ Γ)
     (A := fun j => (τ * P.coeff j) • H (P.perm j.1 j.2))
   rw [show (fun j => P.evalFactor H j (-τ)) = fun j =>
       exp (-((τ * P.coeff j) • H (P.perm j.1 j.2))) by
@@ -476,8 +518,9 @@ lemma eval_mul_invFull [NormedAlgebra ℚ 𝔸] (P : ProductFormulaData) (H : Fi
   simpa [ProductFormulaData.evalFactor, ProductFormulaData.generator, mul_smul] using h
 
 /-- The per-summand identity behind `additiveResidual = 𝒮 · additiveKernel`. -/
-lemma eval_mul_kernel_term [NormedAlgebra ℚ 𝔸] (P : ProductFormulaData) (H : Fin P.Γ → 𝔸)
-    (i : Fin P.Υ × Fin P.Γ) (τ : ℝ) :
+lemma eval_mul_kernel_term [NormedAlgebra ℚ 𝔸]
+    (H : Fin Γ → 𝔸)
+    (i : Fin Υ × Fin Γ) (τ : ℝ) :
     P.eval H τ * (invStrictSuffixFactorProd P H i τ * (P.generator H i) *
         strictSuffixFactorProd P H i τ)
       = prefixFactorProd P H i τ * (P.generator H i) *
@@ -508,15 +551,15 @@ lemma eval_mul_kernel_term [NormedAlgebra ℚ 𝔸] (P : ProductFormulaData) (H 
             suffixFactorProd P H i τ := by rfl
 
 /-- The additive residual equals `𝒮(τ) · 𝒯(τ)`. -/
-lemma additiveResidual_eq_eval_mul_kernel [NormedAlgebra ℚ 𝔸] (P : ProductFormulaData)
-    (H : Fin P.Γ → 𝔸) (τ : ℝ) :
+lemma additiveResidual_eq_eval_mul_kernel [NormedAlgebra ℚ 𝔸]
+    (H : Fin Γ → 𝔸) (τ : ℝ) :
     additiveResidual P H τ = P.eval H τ * additiveKernel P H τ := by
   unfold additiveResidual additiveKernel
   rw [mul_sub, Finset.mul_sum]
-  have hB : P.eval H τ * (factorProdOver P H (-τ) (P.evalIndexList.reverse) * (∑ γ, H γ) *
-      factorProdOver P H τ (P.evalIndexList)) = (∑ γ, H γ) * P.eval H τ := by
+  have hB : P.eval H τ * (factorProdOver P H (-τ) ((evalIndexList Υ Γ).reverse) * (∑ γ, H γ) *
+      factorProdOver P H τ (evalIndexList Υ Γ)) = (∑ γ, H γ) * P.eval H τ := by
     rw [← mul_assoc, ← mul_assoc, eval_mul_invFull P H τ, one_mul,
-      show factorProdOver P H τ (P.evalIndexList) = P.eval H τ by
+      show factorProdOver P H τ (evalIndexList Υ Γ) = P.eval H τ by
         exact factorProdOver_evalIndexList P H τ]
   rw [hB]; congr 1
   apply Finset.sum_congr rfl
@@ -525,14 +568,16 @@ lemma additiveResidual_eq_eval_mul_kernel [NormedAlgebra ℚ 𝔸] (P : ProductF
 
 /-- The additive kernel is continuous. -/
 @[fun_prop]
-lemma continuous_additiveKernel (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) :
+lemma continuous_additiveKernel
+    (H : Fin Γ → 𝔸) :
     Continuous (additiveKernel P H) := by
   unfold additiveKernel invStrictSuffixFactorProd strictSuffixFactorProd
   fun_prop
 
 /-- The exponentiated error is continuous. -/
 @[fun_prop]
-lemma continuous_exponentiatedError (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) :
+lemma continuous_exponentiatedError
+    (H : Fin Γ → 𝔸) :
     Continuous (exponentiatedError P H) := by
   unfold exponentiatedError exponentiatedGenerator prefixFactorProd invPrefixFactorProd
   fun_prop
@@ -540,7 +585,8 @@ lemma continuous_exponentiatedError (P : ProductFormulaData) (H : Fin P.Γ → �
 /-! ### The three representations of `thm:error_type` -/
 
 /-- `thm:error_type` (additive): `𝒮(t) = e^{tH} + ∫₀ᵗ e^{(t−τ)H} 𝒮(τ) 𝒯(τ) dτ`. -/
-theorem errorType_additive [NormedAlgebra ℚ 𝔸] (P : ProductFormulaData) (H : Fin P.Γ → 𝔸)
+theorem errorType_additive [NormedAlgebra ℚ 𝔸]
+    (H : Fin Γ → 𝔸)
     (t : ℝ) :
     P.eval H t = exp (t • (∑ γ, H γ)) + ∫ τ in 0..t,
       exp ((t - τ) • (∑ γ, H γ)) * P.eval H τ * additiveKernel P H τ := by
@@ -564,7 +610,8 @@ theorem errorType_additive [NormedAlgebra ℚ 𝔸] (P : ProductFormulaData) (H 
   intro τ _; simp [mul_assoc]
 
 /-- `thm:error_type` (exponentiated): `𝒮(t) = exp_T(∫₀ᵗ (H + ℰ(τ)) dτ)`. -/
-theorem errorType_exponentiated [NormedAlgebra ℚ 𝔸] (P : ProductFormulaData) (H : Fin P.Γ → 𝔸)
+theorem errorType_exponentiated [NormedAlgebra ℚ 𝔸]
+    (H : Fin Γ → 𝔸)
     (t : ℝ) :
     P.eval H t = timeOrderedExp (fun τ : ℝ => (∑ γ, H γ) + exponentiatedError P H τ) 0 t := by
   let Hc : ℝ → 𝔸 := fun τ => (∑ γ, H γ) + exponentiatedError P H τ
@@ -583,7 +630,8 @@ theorem errorType_exponentiated [NormedAlgebra ℚ 𝔸] (P : ProductFormulaData
   simpa [Hc] using congr_fun h t
 
 /-- `thm:error_type` (multiplicative): `𝒮(t) = e^{tH} (1 + ℳ(t))`. -/
-theorem errorType_multiplicative [NormedAlgebra ℚ 𝔸] (P : ProductFormulaData) (H : Fin P.Γ → 𝔸)
+theorem errorType_multiplicative [NormedAlgebra ℚ 𝔸]
+    (H : Fin Γ → 𝔸)
     (t : ℝ) :
     P.eval H t = exp (t • (∑ γ, H γ)) * (1 + multiplicativeError P H t) := by
   let A : ℝ → 𝔸 := fun _ => (∑ γ, H γ)

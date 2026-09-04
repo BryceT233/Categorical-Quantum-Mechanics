@@ -26,12 +26,17 @@ namespace TrotterError
 
 open NormedSpace
 open Asymptotics
+open ProductFormulaData
 open scoped Topology BigOperators ContDiff
+
+variable {Υ Γ : ℕ}
+variable {𝔸 : Type*} [NormedRing 𝔸]
+variable (P : ProductFormulaData Υ Γ)
 
 /-! ### Smoothness of the exponential -/
 
 /-- `t ↦ exp (t • Σ_i H_i)` is smooth. -/
-lemma contDiff_exp_sum {𝔸 : Type*} [NormedRing 𝔸]
+lemma contDiff_exp_sum
     [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] {ι : Type*} [Fintype ι] (H : ι → 𝔸) :
     ContDiff ℝ ∞ (fun t : ℝ => exp (t • ∑ i : ι, H i)) :=
   contDiff_exp_smul_const (∑ i : ι, H i)
@@ -39,7 +44,7 @@ lemma contDiff_exp_sum {𝔸 : Type*} [NormedRing 𝔸]
 /-! ### Norm bounds for the derivatives -/
 
 /-- Norm bound for the `(p+1)`-st derivative of `s ↦ exp (s • Σ_i H_i)`, valid for all `s`. -/
-lemma norm_iteratedDeriv_exp_sum_le {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸]
+lemma norm_iteratedDeriv_exp_sum_le [NormedAlgebra ℚ 𝔸]
     [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [NormOneClass 𝔸] {ι : Type*} [Fintype ι]
     (H : ι → 𝔸) (p : ℕ) (s : ℝ) :
     ‖iteratedDeriv (p + 1) (fun r : ℝ => exp (r • ∑ i : ι, H i)) s‖ ≤
@@ -60,7 +65,7 @@ lemma norm_iteratedDeriv_exp_sum_le {𝔸 : Type*} [NormedRing 𝔸] [NormedAlge
           (Real.exp_nonneg _) (pow_nonneg hS (p + 1))
 
 /-- Norm bound for the `(p+1)`-st derivative of `s ↦ exp (s • Σ_i H_i)` for `0 ≤ u ≤ 1`, `0 ≤ t`. -/
-lemma norm_iteratedDeriv_exp_sum_le_of_nonneg {𝔸 : Type*} [NormedRing 𝔸]
+lemma norm_iteratedDeriv_exp_sum_le_of_nonneg
     [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [NormOneClass 𝔸]
     {ι : Type*} [Fintype ι]
     (H : ι → 𝔸) (p : ℕ) (u t : ℝ) (ht : 0 ≤ t) (hu0 : 0 ≤ u) (hu1 : u ≤ 1) :
@@ -78,28 +83,28 @@ lemma norm_iteratedDeriv_exp_sum_le_of_nonneg {𝔸 : Type*} [NormedRing 𝔸]
 
 /-- The `(p+1)`-st derivative of the error `F = eval − exp` is bounded by the paper's
 two-term bound (prelim.tex:186–187), valid for `0 ≤ u ≤ 1`, `0 ≤ t`. -/
-lemma norm_iteratedDeriv_F_le (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
+lemma norm_iteratedDeriv_F_le
     [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [NormOneClass 𝔸]
-    (H : Fin P.Γ → 𝔸) (p : ℕ) (u t : ℝ) (ht : 0 ≤ t) (hu0 : 0 ≤ u) (hu1 : u ≤ 1) :
-    ‖iteratedDeriv (p + 1) (fun s : ℝ => P.eval H s - exp (s • ∑ γ : Fin P.Γ, H γ)) (u * t)‖ ≤
-      ((P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) ^ (p + 1) * Real.exp (t * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖)
-        + (∑ γ : Fin P.Γ, ‖H γ‖) ^ (p + 1) * Real.exp (t * ∑ γ : Fin P.Γ, ‖H γ‖) := by
+    (H : Fin Γ → 𝔸) (p : ℕ) (u t : ℝ) (ht : 0 ≤ t) (hu0 : 0 ≤ u) (hu1 : u ≤ 1) :
+    ‖iteratedDeriv (p + 1) (fun s : ℝ => P.eval H s - exp (s • ∑ γ : Fin Γ, H γ)) (u * t)‖ ≤
+      ((Υ : ℝ) * ∑ γ : Fin Γ, ‖H γ‖) ^ (p + 1) * Real.exp (t * (Υ : ℝ) * ∑ γ : Fin Γ, ‖H γ‖)
+        + (∑ γ : Fin Γ, ‖H γ‖) ^ (p + 1) * Real.exp (t * ∑ γ : Fin Γ, ‖H γ‖) := by
   have hsub : iteratedDeriv (p + 1)
-      (fun s : ℝ => P.eval H s - exp (s • ∑ γ : Fin P.Γ, H γ)) (u * t) =
+      (fun s : ℝ => P.eval H s - exp (s • ∑ γ : Fin Γ, H γ)) (u * t) =
       iteratedDeriv (p + 1) (fun s : ℝ => P.eval H s) (u * t) -
-        iteratedDeriv (p + 1) (fun s : ℝ => exp (s • ∑ γ : Fin P.Γ, H γ)) (u * t) :=
+        iteratedDeriv (p + 1) (fun s : ℝ => exp (s • ∑ γ : Fin Γ, H γ)) (u * t) :=
         iteratedDeriv_sub ((contDiff_eval P H).of_le (mod_cast le_top)).contDiffAt
           ((contDiff_exp_sum H).of_le (mod_cast le_top)).contDiffAt
   rw [hsub]
   calc
     ‖iteratedDeriv (p + 1) (fun s : ℝ => P.eval H s) (u * t) -
-        iteratedDeriv (p + 1) (fun s : ℝ => exp (s • ∑ γ : Fin P.Γ, H γ)) (u * t)‖
+        iteratedDeriv (p + 1) (fun s : ℝ => exp (s • ∑ γ : Fin Γ, H γ)) (u * t)‖
         ≤ ‖iteratedDeriv (p + 1) (fun s : ℝ => P.eval H s) (u * t)‖ +
-            ‖iteratedDeriv (p + 1) (fun s : ℝ => exp (s • ∑ γ : Fin P.Γ, H γ)) (u * t)‖ :=
+            ‖iteratedDeriv (p + 1) (fun s : ℝ => exp (s • ∑ γ : Fin Γ, H γ)) (u * t)‖ :=
               norm_sub_le _ _
-    _ ≤ ((P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) ^ (p + 1) *
-        Real.exp (t * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖)
-          + (∑ γ : Fin P.Γ, ‖H γ‖) ^ (p + 1) * Real.exp (t * ∑ γ : Fin P.Γ, ‖H γ‖) := add_le_add
+    _ ≤ ((Υ : ℝ) * ∑ γ : Fin Γ, ‖H γ‖) ^ (p + 1) *
+        Real.exp (t * (Υ : ℝ) * ∑ γ : Fin Γ, ‖H γ‖)
+          + (∑ γ : Fin Γ, ‖H γ‖) ^ (p + 1) * Real.exp (t * ∑ γ : Fin Γ, ‖H γ‖) := add_le_add
           (P.eval_iteratedDeriv_norm_le H p u t ht hu0 hu1)
           (norm_iteratedDeriv_exp_sum_le_of_nonneg H p u t ht hu0 hu1)
 
@@ -232,16 +237,16 @@ lemma paper_bound_le_target (Υ : ℕ) (S : ℝ) (p : ℕ) (t : ℝ) (hS : 0 ≤
 
 /-- `eq:trotter_error_one_norm_scaling_bound`: the explicit pointwise Trotter-error bound,
 valid for all `t ≥ 0`. -/
-theorem trotter_error_bound_one_norm_scaling (P : ProductFormulaData) {𝔸 : Type*}
-    [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [NormOneClass 𝔸]
-    (H : Fin P.Γ → 𝔸) (p : ℕ) (h_order : P.IsOrderOf p H) :
+theorem trotter_error_bound_one_norm_scaling
+    [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [NormOneClass 𝔸]
+    (H : Fin Γ → 𝔸) (p : ℕ) (h_order : P.IsOrderOf p H) :
     ∀ t : ℝ, 0 ≤ t →
-      ‖P.eval H t - exp (t • ∑ γ : Fin P.Γ, H γ)‖ ≤
+      ‖P.eval H t - exp (t • ∑ γ : Fin Γ, H γ)‖ ≤
         t ^ (p + 1) / (Nat.factorial (p + 1) : ℝ) *
-          (((P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) ^ (p + 1) *
-              Real.exp (t * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) +
-            (∑ γ : Fin P.Γ, ‖H γ‖) ^ (p + 1) * Real.exp (t * ∑ γ : Fin P.Γ, ‖H γ‖)) := by
-  let F : ℝ → 𝔸 := fun t => P.eval H t - exp (t • ∑ γ : Fin P.Γ, H γ)
+          (((Υ : ℝ) * ∑ γ : Fin Γ, ‖H γ‖) ^ (p + 1) *
+              Real.exp (t * (Υ : ℝ) * ∑ γ : Fin Γ, ‖H γ‖) +
+            (∑ γ : Fin Γ, ‖H γ‖) ^ (p + 1) * Real.exp (t * ∑ γ : Fin Γ, ‖H γ‖)) := by
+  let F : ℝ → 𝔸 := fun t => P.eval H t - exp (t • ∑ γ : Fin Γ, H γ)
   have hF_smooth : ContDiff ℝ ∞ F := (contDiff_eval P H).sub (contDiff_exp_sum H)
   have h0 : ∀ j : ℕ, j ≤ p → iteratedDeriv j F 0 = 0 :=
     (isBigO_norm_iff_iteratedDeriv_eq_zero F p hF_smooth).1 h_order
@@ -253,17 +258,17 @@ theorem trotter_error_bound_one_norm_scaling (P : ProductFormulaData) {𝔸 : Ty
 
 /-- `lem:trotter_error_one_norm_scaling` (general branch): for a `p`-th order product
 formula, `‖𝒮(t) − e^{tH}‖ = 𝒪((Σ_γ ‖H_γ‖ t)^{p+1} e^{tΥ Σ_γ ‖H_γ‖})` as `t → 0`. -/
-theorem trotter_error_one_norm_scaling (P : ProductFormulaData) {𝔸 : Type*}
-    [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [NormOneClass 𝔸]
-    (H : Fin P.Γ → 𝔸) (p : ℕ) (h_order : P.IsOrderOf p H) :
-    (fun t : ℝ ↦ ‖P.eval H t - exp (t • ∑ γ : Fin P.Γ, H γ)‖) =O[𝓝 (0 : ℝ)]
-      (fun t : ℝ ↦ ((∑ γ : Fin P.Γ, ‖H γ‖) * t) ^ (p + 1) *
-        exp (t * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖)) := by
-  let S : ℝ := ∑ γ : Fin P.Γ, ‖H γ‖
-  let F : ℝ → 𝔸 := fun t => P.eval H t - exp (t • ∑ γ : Fin P.Γ, H γ)
-  let g : ℝ → ℝ := fun t => (S * t) ^ (p + 1) * Real.exp (t * (P.Υ : ℝ) * S)
+theorem trotter_error_one_norm_scaling
+    [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [NormOneClass 𝔸]
+    (H : Fin Γ → 𝔸) (p : ℕ) (h_order : P.IsOrderOf p H) :
+    (fun t : ℝ ↦ ‖P.eval H t - exp (t • ∑ γ : Fin Γ, H γ)‖) =O[𝓝 (0 : ℝ)]
+      (fun t : ℝ ↦ ((∑ γ : Fin Γ, ‖H γ‖) * t) ^ (p + 1) *
+        exp (t * (Υ : ℝ) * ∑ γ : Fin Γ, ‖H γ‖)) := by
+  let S : ℝ := ∑ γ : Fin Γ, ‖H γ‖
+  let F : ℝ → 𝔸 := fun t => P.eval H t - exp (t • ∑ γ : Fin Γ, H γ)
+  let g : ℝ → ℝ := fun t => (S * t) ^ (p + 1) * Real.exp (t * (Υ : ℝ) * S)
   by_cases hS : S = 0
-  · have hH_zero : ∀ γ : Fin P.Γ, H γ = 0 := by
+  · have hH_zero : ∀ γ : Fin Γ, H γ = 0 := by
       intro γ
       have hle : ‖H γ‖ ≤ S := Finset.single_le_sum (fun _ _ => norm_nonneg _) (Finset.mem_univ γ)
       have hnorm : ‖H γ‖ = 0 := by
@@ -277,10 +282,10 @@ theorem trotter_error_one_norm_scaling (P : ProductFormulaData) {𝔸 : Type*}
     refine IsBigO.of_bound 1 ?_
     filter_upwards with t
     rw [Real.norm_of_nonneg (norm_nonneg (F t)), hF_zero t]
-    simpa using (norm_nonneg (((∑ γ : Fin P.Γ, ‖H γ‖) * t) ^ (p + 1) *
-      exp (t * (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖)))
+    simpa using (norm_nonneg (((∑ γ : Fin Γ, ‖H γ‖) * t) ^ (p + 1) *
+      exp (t * (Υ : ℝ) * ∑ γ : Fin Γ, ‖H γ‖)))
   · have hS_nonneg : 0 ≤ S := Finset.sum_nonneg (fun γ _ => norm_nonneg _)
-    let C₁ : ℝ := ((P.Υ : ℝ) ^ (p + 1) * Real.exp ((P.Υ : ℝ) * S) + Real.exp S) /
+    let C₁ : ℝ := ((Υ : ℝ) ^ (p + 1) * Real.exp ((Υ : ℝ) * S) + Real.exp S) /
       (Nat.factorial (p + 1) : ℝ)
     have hO_ge : (fun t : ℝ => ‖F t‖) =O[𝓝[≥] (0 : ℝ)] g := by
       refine IsBigO.of_bound C₁ ?_
@@ -292,23 +297,23 @@ theorem trotter_error_one_norm_scaling (P : ProductFormulaData) {𝔸 : Type*}
       rw [Real.norm_of_nonneg (norm_nonneg (F t))]
       calc
         ‖F t‖ ≤ t ^ (p + 1) / (Nat.factorial (p + 1) : ℝ) *
-            (((P.Υ : ℝ) * S) ^ (p + 1) * Real.exp (t * (P.Υ : ℝ) * S) +
+            (((Υ : ℝ) * S) ^ (p + 1) * Real.exp (t * (Υ : ℝ) * S) +
               S ^ (p + 1) * Real.exp (t * S)) :=
               trotter_error_bound_one_norm_scaling P H p h_order t ht0
-        _ ≤ (S * t) ^ (p + 1) * C₁ * Real.exp (t * (P.Υ : ℝ) * S) :=
-              paper_bound_le_target P.Υ S p t hS_nonneg ht0 ht1
+        _ ≤ (S * t) ^ (p + 1) * C₁ * Real.exp (t * (Υ : ℝ) * S) :=
+              paper_bound_le_target Υ S p t hS_nonneg ht0 ht1
         _ = C₁ * ‖g t‖ := by
-              change (S * t) ^ (p + 1) * C₁ * Real.exp (t * (P.Υ : ℝ) * S) =
-                C₁ * ‖(S * t) ^ (p + 1) * Real.exp (t * (P.Υ : ℝ) * S)‖
+              change (S * t) ^ (p + 1) * C₁ * Real.exp (t * (Υ : ℝ) * S) =
+                C₁ * ‖(S * t) ^ (p + 1) * Real.exp (t * (Υ : ℝ) * S)‖
               rw [Real.norm_of_nonneg (by positivity)]
               ring
     have hO_le : (fun t : ℝ => ‖F t‖) =O[𝓝[≤] (0 : ℝ)] g := by
       have h1 : (fun t : ℝ => t ^ (p + 1)) =O[𝓝[≤] (0 : ℝ)] g := by
         refine (isBigO_pow_le_target_left p (lt_of_le_of_ne hS_nonneg (Ne.symm hS))
-          (mul_nonneg (Nat.cast_nonneg P.Υ) hS_nonneg)).trans_eventuallyEq ?_
+          (mul_nonneg (Nat.cast_nonneg Υ) hS_nonneg)).trans_eventuallyEq ?_
         filter_upwards with t
         dsimp [g]
-        rw [show t * ((P.Υ : ℝ) * S) = t * (P.Υ : ℝ) * S by ring]
+        rw [show t * ((Υ : ℝ) * S) = t * (Υ : ℝ) * S by ring]
       exact (h_order.mono nhdsWithin_le_nhds).trans h1
     have hO_sup : (fun t : ℝ => ‖F t‖) =O[𝓝[≥] (0 : ℝ) ⊔ 𝓝[≤] (0 : ℝ)] g :=
       IsBigO.sup hO_ge hO_le
@@ -318,11 +323,11 @@ theorem trotter_error_one_norm_scaling (P : ProductFormulaData) {𝔸 : Type*}
     simpa [hsup_eq, F, g, S, Real.exp_eq_exp_ℝ] using hO_sup
 
 /-- Per-factor norm bound in the anti-Hermitian case: the exponential factor is unitary. -/
-lemma norm_factor_le_skew (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
+lemma norm_factor_le_skew
     [NormedAlgebra ℚ 𝔸] [NormedSpace ℝ 𝔸] [CompleteSpace 𝔸] [StarRing 𝔸]
     [CStarRing 𝔸] [Nontrivial 𝔸] [StarModule ℝ 𝔸]
-    (H : Fin P.Γ → 𝔸) (h_skew : ∀ γ : Fin P.Γ, star (H γ) = -(H γ))
-    (i : Fin P.Υ × Fin P.Γ) (q : ℕ) (u t : ℝ) :
+    (H : Fin Γ → 𝔸) (h_skew : ∀ γ : Fin Γ, star (H γ) = -(H γ))
+    (i : Fin Υ × Fin Γ) (q : ℕ) (u t : ℝ) :
     ‖(P.generator H i) ^ q *
         exp ((u * t * P.coeff i) • H (P.perm i.1 i.2))‖
       ≤ ‖H (P.perm i.1 i.2)‖ ^ q := by
@@ -352,68 +357,68 @@ lemma norm_factor_le_skew (P : ProductFormulaData) {𝔸 : Type*} [NormedRing �
 
 /-- The norm of the product in `𝔸` of the derivative factors is bounded by the product of the
 per-factor norms, in the anti-Hermitian case (no exponential factor). -/
-lemma norm_derivProd_le_skew (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
+lemma norm_derivProd_le_skew
     [NormedAlgebra ℚ 𝔸] [NormedSpace ℝ 𝔸] [CompleteSpace 𝔸] [StarRing 𝔸]
     [CStarRing 𝔸] [Nontrivial 𝔸] [StarModule ℝ 𝔸]
-    (H : Fin P.Γ → 𝔸) (h_skew : ∀ γ : Fin P.Γ, star (H γ) = -(H γ))
-    (q : Fin P.Υ × Fin P.Γ → ℕ) (u t : ℝ) :
+    (H : Fin Γ → 𝔸) (h_skew : ∀ γ : Fin Γ, star (H γ) = -(H γ))
+    (q : Fin Υ × Fin Γ → ℕ) (u t : ℝ) :
     ‖P.derivProd H q (u * t)‖ ≤
-      ∏ i : Fin P.Υ × Fin P.Γ, ‖H (P.perm i.1 i.2)‖ ^ q i := by
-  let g : Fin P.Υ × Fin P.Γ → 𝔸 := fun i =>
+      ∏ i : Fin Υ × Fin Γ, ‖H (P.perm i.1 i.2)‖ ^ q i := by
+  let g : Fin Υ × Fin Γ → 𝔸 := fun i =>
     (P.generator H i) ^ q i *
       exp ((u * t * P.coeff i) • H (P.perm i.1 i.2))
-  have hflat : P.derivProd H q (u * t) = (P.evalIndexList.map g).prod :=
-    (ProductFormulaData.evalIndexList_map_prod P g).symm
+  have hflat : P.derivProd H q (u * t) = ((evalIndexList Υ Γ).map g).prod :=
+    (evalIndexList_map_prod g).symm
   calc
-    ‖P.derivProd H q (u * t)‖ = ‖(P.evalIndexList.map g).prod‖ := by rw [hflat]
-    _ ≤ (P.evalIndexList.map (fun i => ‖g i‖)).prod := by
-        simpa [List.map_map, Function.comp_def] using List.norm_prod_le (P.evalIndexList.map g)
-    _ = ∏ i : Fin P.Υ × Fin P.Γ, ‖g i‖ := by
-        rw [ProductFormulaData.evalIndexList_map_prod P (fun i => ‖g i‖),
+    ‖P.derivProd H q (u * t)‖ = ‖((evalIndexList Υ Γ).map g).prod‖ := by rw [hflat]
+    _ ≤ ((evalIndexList Υ Γ).map (fun i => ‖g i‖)).prod := by
+        simpa [List.map_map, Function.comp_def] using List.norm_prod_le ((evalIndexList Υ Γ).map g)
+    _ = ∏ i : Fin Υ × Fin Γ, ‖g i‖ := by
+        rw [evalIndexList_map_prod (fun i => ‖g i‖),
           ProductFormulaData.nested_prod_eq_finset_prod (fun i => ‖g i‖)]
-    _ ≤ ∏ i : Fin P.Υ × Fin P.Γ, ‖H (P.perm i.1 i.2)‖ ^ q i := Finset.prod_le_prod
+    _ ≤ ∏ i : Fin Υ × Fin Γ, ‖H (P.perm i.1 i.2)‖ ^ q i := Finset.prod_le_prod
       (fun i _ => norm_nonneg _) (fun i _ => norm_factor_le_skew P H h_skew i (q i) u t)
 
 /-- The `(p+1)`-st derivative of `eval` is bounded by `(Υ·Σ_γ ‖H_γ‖)^{p+1}` in the
 anti-Hermitian case. -/
-lemma eval_iteratedDeriv_norm_le_skew (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
+lemma eval_iteratedDeriv_norm_le_skew
     [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [StarRing 𝔸]
     [CStarRing 𝔸] [Nontrivial 𝔸] [StarModule ℝ 𝔸]
-    (H : Fin P.Γ → 𝔸) (h_skew : ∀ γ : Fin P.Γ, star (H γ) = -(H γ))
+    (H : Fin Γ → 𝔸) (h_skew : ∀ γ : Fin Γ, star (H γ) = -(H γ))
     (p : ℕ) (u t : ℝ) :
     ‖iteratedDeriv (p + 1) (fun s : ℝ => P.eval H s) (u * t)‖ ≤
-      ((P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) ^ (p + 1) := by
-  let B : Fin P.Υ × Fin P.Γ → ℝ := fun i => ‖H (P.perm i.1 i.2)‖
-  have hB : (∑ i : Fin P.Υ × Fin P.Γ, B i) = (P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖ :=
+      ((Υ : ℝ) * ∑ γ : Fin Γ, ‖H γ‖) ^ (p + 1) := by
+  let B : Fin Υ × Fin Γ → ℝ := fun i => ‖H (P.perm i.1 i.2)‖
+  have hB : (∑ i : Fin Υ × Fin Γ, B i) = (Υ : ℝ) * ∑ γ : Fin Γ, ‖H γ‖ :=
     ProductFormulaData.sum_norm_prod P H
   rw [P.eval_iteratedDeriv_succ H p (u * t)]
   calc
-    ‖∑ q ∈ Finset.piAntidiag (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) (p + 1),
-        (Nat.multinomial (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) q : ℝ) •
+    ‖∑ q ∈ Finset.piAntidiag (Finset.univ : Finset (Fin Υ × Fin Γ)) (p + 1),
+        (Nat.multinomial (Finset.univ : Finset (Fin Υ × Fin Γ)) q : ℝ) •
           P.derivProd H q (u * t)‖
-        ≤ ∑ q ∈ Finset.piAntidiag (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) (p + 1),
-            ‖(Nat.multinomial (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) q : ℝ) •
+        ≤ ∑ q ∈ Finset.piAntidiag (Finset.univ : Finset (Fin Υ × Fin Γ)) (p + 1),
+            ‖(Nat.multinomial (Finset.univ : Finset (Fin Υ × Fin Γ)) q : ℝ) •
               P.derivProd H q (u * t)‖ := norm_sum_le _ _
-    _ = ∑ q ∈ Finset.piAntidiag (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) (p + 1),
-            (Nat.multinomial (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) q : ℝ) *
+    _ = ∑ q ∈ Finset.piAntidiag (Finset.univ : Finset (Fin Υ × Fin Γ)) (p + 1),
+            (Nat.multinomial (Finset.univ : Finset (Fin Υ × Fin Γ)) q : ℝ) *
               ‖P.derivProd H q (u * t)‖ := by
             apply Finset.sum_congr rfl
             intro q hq
             rw [norm_smul, Real.norm_of_nonneg (Nat.cast_nonneg _)]
-    _ ≤ ∑ q ∈ Finset.piAntidiag (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) (p + 1),
-            (Nat.multinomial (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) q : ℝ) *
-              (∏ i : Fin P.Υ × Fin P.Γ, B i ^ q i) := by
+    _ ≤ ∑ q ∈ Finset.piAntidiag (Finset.univ : Finset (Fin Υ × Fin Γ)) (p + 1),
+            (Nat.multinomial (Finset.univ : Finset (Fin Υ × Fin Γ)) q : ℝ) *
+              (∏ i : Fin Υ × Fin Γ, B i ^ q i) := by
             apply Finset.sum_le_sum
             intro q hq
             exact mul_le_mul_of_nonneg_left (norm_derivProd_le_skew P H h_skew q u t)
               (Nat.cast_nonneg _)
-    _ = ((P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) ^ (p + 1) := by
+    _ = ((Υ : ℝ) * ∑ γ : Fin Γ, ‖H γ‖) ^ (p + 1) := by
         rw [← Finset.sum_pow_eq_sum_piAntidiag
-          (Finset.univ : Finset (Fin P.Υ × Fin P.Γ)) B (p + 1), hB]
+          (Finset.univ : Finset (Fin Υ × Fin Γ)) B (p + 1), hB]
 
 /-- Norm bound for the `(p+1)`-st derivative of `s ↦ exp (s • Σ_i H_i)` in the
 anti-Hermitian case. -/
-lemma norm_iteratedDeriv_exp_sum_le_skew {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸]
+lemma norm_iteratedDeriv_exp_sum_le_skew [NormedAlgebra ℚ 𝔸]
     [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [StarRing 𝔸] [CStarRing 𝔸]
     [Nontrivial 𝔸] [StarModule ℝ 𝔸] {ι : Type*} [Fintype ι]
     (H : ι → 𝔸) (p : ℕ) (h_skew_sum : star (∑ i : ι, H i) = -(∑ i : ι, H i)) (s : ℝ) :
@@ -432,45 +437,45 @@ lemma norm_iteratedDeriv_exp_sum_le_skew {𝔸 : Type*} [NormedRing 𝔸] [Norme
 
 /-- The `(p+1)`-st derivative of the error is bounded by `(ΥS)^{p+1} + S^{p+1}` in the
 anti-Hermitian case, for all `u`, `t`. -/
-lemma norm_iteratedDeriv_F_le_skew (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
+lemma norm_iteratedDeriv_F_le_skew
     [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [StarRing 𝔸]
     [CStarRing 𝔸] [Nontrivial 𝔸] [StarModule ℝ 𝔸]
-    (H : Fin P.Γ → 𝔸) (h_skew : ∀ γ : Fin P.Γ, star (H γ) = -(H γ))
+    (H : Fin Γ → 𝔸) (h_skew : ∀ γ : Fin Γ, star (H γ) = -(H γ))
     (p : ℕ) (u t : ℝ) :
-    ‖iteratedDeriv (p + 1) (fun s : ℝ => P.eval H s - exp (s • ∑ γ : Fin P.Γ, H γ)) (u * t)‖ ≤
-      ((P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) ^ (p + 1) + (∑ γ : Fin P.Γ, ‖H γ‖) ^ (p + 1) := by
-  have h_skew_sum : star (∑ γ : Fin P.Γ, H γ) = -(∑ γ : Fin P.Γ, H γ) :=
+    ‖iteratedDeriv (p + 1) (fun s : ℝ => P.eval H s - exp (s • ∑ γ : Fin Γ, H γ)) (u * t)‖ ≤
+      ((Υ : ℝ) * ∑ γ : Fin Γ, ‖H γ‖) ^ (p + 1) + (∑ γ : Fin Γ, ‖H γ‖) ^ (p + 1) := by
+  have h_skew_sum : star (∑ γ : Fin Γ, H γ) = -(∑ γ : Fin Γ, H γ) :=
     sum_skewAdjoint H h_skew
   have hsub : iteratedDeriv (p + 1)
-      (fun s : ℝ => P.eval H s - exp (s • ∑ γ : Fin P.Γ, H γ)) (u * t) =
+      (fun s : ℝ => P.eval H s - exp (s • ∑ γ : Fin Γ, H γ)) (u * t) =
       iteratedDeriv (p + 1) (fun s : ℝ => P.eval H s) (u * t) -
-        iteratedDeriv (p + 1) (fun s : ℝ => exp (s • ∑ γ : Fin P.Γ, H γ)) (u * t) :=
+        iteratedDeriv (p + 1) (fun s : ℝ => exp (s • ∑ γ : Fin Γ, H γ)) (u * t) :=
     iteratedDeriv_sub ((contDiff_eval P H).of_le (mod_cast le_top)).contDiffAt
       ((contDiff_exp_sum H).of_le (mod_cast le_top)).contDiffAt
   rw [hsub]
   calc
     ‖iteratedDeriv (p + 1) (fun s : ℝ => P.eval H s) (u * t) -
-        iteratedDeriv (p + 1) (fun s : ℝ => exp (s • ∑ γ : Fin P.Γ, H γ)) (u * t)‖
+        iteratedDeriv (p + 1) (fun s : ℝ => exp (s • ∑ γ : Fin Γ, H γ)) (u * t)‖
         ≤ ‖iteratedDeriv (p + 1) (fun s : ℝ => P.eval H s) (u * t)‖ +
-            ‖iteratedDeriv (p + 1) (fun s : ℝ => exp (s • ∑ γ : Fin P.Γ, H γ)) (u * t)‖ :=
+            ‖iteratedDeriv (p + 1) (fun s : ℝ => exp (s • ∑ γ : Fin Γ, H γ)) (u * t)‖ :=
               norm_sub_le _ _
-    _ ≤ ((P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) ^ (p + 1) + (∑ γ : Fin P.Γ, ‖H γ‖) ^ (p + 1) :=
+    _ ≤ ((Υ : ℝ) * ∑ γ : Fin Γ, ‖H γ‖) ^ (p + 1) + (∑ γ : Fin Γ, ‖H γ‖) ^ (p + 1) :=
         add_le_add (eval_iteratedDeriv_norm_le_skew P H h_skew p u t)
           (norm_iteratedDeriv_exp_sum_le_skew H p h_skew_sum (u * t))
 
 /-- `eq:trotter_error_one_norm_scaling_bound` in the anti-Hermitian case: the explicit pointwise
 bound, valid for all `t ≥ 0`. -/
-theorem trotter_error_bound_one_norm_scaling_of_skew_adjoint (P : ProductFormulaData) {𝔸 : Type*}
-    [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [StarRing 𝔸]
+theorem trotter_error_bound_one_norm_scaling_of_skew_adjoint
+    [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [StarRing 𝔸]
     [CStarRing 𝔸] [Nontrivial 𝔸] [StarModule ℝ 𝔸]
-    (H : Fin P.Γ → 𝔸) (p : ℕ) (h_skew : ∀ γ : Fin P.Γ, star (H γ) = -(H γ))
+    (H : Fin Γ → 𝔸) (p : ℕ) (h_skew : ∀ γ : Fin Γ, star (H γ) = -(H γ))
     (h_order : P.IsOrderOf p H) :
     ∀ t : ℝ, 0 ≤ t →
-      ‖P.eval H t - exp (t • ∑ γ : Fin P.Γ, H γ)‖ ≤
+      ‖P.eval H t - exp (t • ∑ γ : Fin Γ, H γ)‖ ≤
         t ^ (p + 1) / (Nat.factorial (p + 1) : ℝ) *
-          (((P.Υ : ℝ) * ∑ γ : Fin P.Γ, ‖H γ‖) ^ (p + 1) +
-            (∑ γ : Fin P.Γ, ‖H γ‖) ^ (p + 1)) := by
-  let F : ℝ → 𝔸 := fun t => P.eval H t - exp (t • ∑ γ : Fin P.Γ, H γ)
+          (((Υ : ℝ) * ∑ γ : Fin Γ, ‖H γ‖) ^ (p + 1) +
+            (∑ γ : Fin Γ, ‖H γ‖) ^ (p + 1)) := by
+  let F : ℝ → 𝔸 := fun t => P.eval H t - exp (t • ∑ γ : Fin Γ, H γ)
   have hF_smooth : ContDiff ℝ ∞ F := (contDiff_eval P H).sub (contDiff_exp_sum H)
   have h0 : ∀ j : ℕ, j ≤ p → iteratedDeriv j F 0 = 0 :=
     (isBigO_norm_iff_iteratedDeriv_eq_zero F p hF_smooth).1 h_order
@@ -482,18 +487,18 @@ theorem trotter_error_bound_one_norm_scaling_of_skew_adjoint (P : ProductFormula
 
 /-- `lem:trotter_error_one_norm_scaling` (anti-Hermitian branch): the exponential
 factor drops out when the `H_γ` are anti-Hermitian. -/
-theorem trotter_error_one_norm_scaling_of_skew_adjoint (P : ProductFormulaData) {𝔸 : Type*}
-    [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [StarRing 𝔸]
+theorem trotter_error_one_norm_scaling_of_skew_adjoint
+    [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [StarRing 𝔸]
     [CStarRing 𝔸] [Nontrivial 𝔸] [StarModule ℝ 𝔸]
-    (H : Fin P.Γ → 𝔸) (p : ℕ) (h_skew : ∀ γ : Fin P.Γ, star (H γ) = -(H γ))
+    (H : Fin Γ → 𝔸) (p : ℕ) (h_skew : ∀ γ : Fin Γ, star (H γ) = -(H γ))
     (h_order : P.IsOrderOf p H) :
-    (fun t : ℝ ↦ ‖P.eval H t - exp (t • ∑ γ : Fin P.Γ, H γ)‖) =O[𝓝 (0 : ℝ)]
-      (fun t : ℝ ↦ ((∑ γ : Fin P.Γ, ‖H γ‖) * t) ^ (p + 1)) := by
-  let S : ℝ := ∑ γ : Fin P.Γ, ‖H γ‖
-  let F : ℝ → 𝔸 := fun t => P.eval H t - exp (t • ∑ γ : Fin P.Γ, H γ)
+    (fun t : ℝ ↦ ‖P.eval H t - exp (t • ∑ γ : Fin Γ, H γ)‖) =O[𝓝 (0 : ℝ)]
+      (fun t : ℝ ↦ ((∑ γ : Fin Γ, ‖H γ‖) * t) ^ (p + 1)) := by
+  let S : ℝ := ∑ γ : Fin Γ, ‖H γ‖
+  let F : ℝ → 𝔸 := fun t => P.eval H t - exp (t • ∑ γ : Fin Γ, H γ)
   let g : ℝ → ℝ := fun t => (S * t) ^ (p + 1)
   by_cases hS : S = 0
-  · have hH_zero : ∀ γ : Fin P.Γ, H γ = 0 := by
+  · have hH_zero : ∀ γ : Fin Γ, H γ = 0 := by
       intro γ
       have hle : ‖H γ‖ ≤ S := Finset.single_le_sum (fun _ _ => norm_nonneg _) (Finset.mem_univ γ)
       have hnorm : ‖H γ‖ = 0 := by
@@ -508,9 +513,9 @@ theorem trotter_error_one_norm_scaling_of_skew_adjoint (P : ProductFormulaData) 
     refine IsBigO.of_bound 1 ?_
     filter_upwards with t
     rw [Real.norm_of_nonneg (norm_nonneg (F t)), hF_zero t]
-    simpa using (norm_nonneg (((∑ γ : Fin P.Γ, ‖H γ‖) * t) ^ (p + 1)))
+    simpa using (norm_nonneg (((∑ γ : Fin Γ, ‖H γ‖) * t) ^ (p + 1)))
   · have hS_nonneg : 0 ≤ S := Finset.sum_nonneg (fun γ _ => norm_nonneg _)
-    let C₁ : ℝ := ((P.Υ : ℝ) ^ (p + 1) + 1) / (Nat.factorial (p + 1) : ℝ)
+    let C₁ : ℝ := ((Υ : ℝ) ^ (p + 1) + 1) / (Nat.factorial (p + 1) : ℝ)
     have hO_ge : (fun t : ℝ => ‖F t‖) =O[𝓝[≥] (0 : ℝ)] g := by
       refine IsBigO.of_bound C₁ ?_
       have ht_nonneg : ∀ᶠ t in 𝓝[≥] (0 : ℝ), 0 ≤ t := self_mem_nhdsWithin
@@ -518,7 +523,7 @@ theorem trotter_error_one_norm_scaling_of_skew_adjoint (P : ProductFormulaData) 
       rw [Real.norm_of_nonneg (norm_nonneg (F t))]
       calc
         ‖F t‖ ≤ t ^ (p + 1) / (Nat.factorial (p + 1) : ℝ) *
-            (((P.Υ : ℝ) * S) ^ (p + 1) + S ^ (p + 1)) :=
+            (((Υ : ℝ) * S) ^ (p + 1) + S ^ (p + 1)) :=
               trotter_error_bound_one_norm_scaling_of_skew_adjoint P H p h_skew h_order t ht0
         _ = (S * t) ^ (p + 1) * C₁ := by
               simp_rw [mul_pow]
@@ -544,7 +549,7 @@ theorem trotter_error_one_norm_scaling_of_skew_adjoint (P : ProductFormulaData) 
     simpa [hsup_eq, F, g, S] using hO_sup
 
 /-- Telescoping bound: if `‖A‖ ≤ 1` and `‖B‖ ≤ 1`, then `‖A^r − B^r‖ ≤ r · ‖A − B‖`. -/
-lemma norm_pow_sub_pow_le_of_norm_le_one {𝔸 : Type*} [NormedRing 𝔸] [NormOneClass 𝔸]
+lemma norm_pow_sub_pow_le_of_norm_le_one [NormOneClass 𝔸]
     (A B : 𝔸) (r : ℕ) (hA : ‖A‖ ≤ 1) (hB : ‖B‖ ≤ 1) :
     ‖A ^ r - B ^ r‖ ≤ (r : ℝ) * ‖A - B‖ := by
   induction r with
@@ -571,7 +576,7 @@ lemma norm_pow_sub_pow_le_of_norm_le_one {𝔸 : Type*} [NormedRing 𝔸] [NormO
                 ring
 
 /-- `exp (t • x) = exp ((t / (r : ℝ)) • x) ^ r` for `r > 0`. -/
-lemma exp_smul_eq_pow_of_div {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [CompleteSpace 𝔸]
+lemma exp_smul_eq_pow_of_div [NormedAlgebra ℚ 𝔸] [CompleteSpace 𝔸]
     [NormedSpace ℝ 𝔸] (x : 𝔸) (t : ℝ) {r : ℕ} (hr : 0 < r) :
     exp (t • x) = exp ((t / (r : ℝ)) • x) ^ r := by
   have hr' : (r : ℝ) ≠ 0 := by positivity
@@ -582,18 +587,18 @@ lemma exp_smul_eq_pow_of_div {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℚ
   exact NormedSpace.exp_nsmul r ((t / (r : ℝ)) • x)
 
 /-- In the anti-Hermitian case, every factor of `P.eval H s` is unitary, so `‖P.eval H s‖ ≤ 1`. -/
-lemma norm_eval_le_one_of_skew (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
+lemma norm_eval_le_one_of_skew
     [NormedAlgebra ℚ 𝔸] [NormedSpace ℝ 𝔸] [CompleteSpace 𝔸] [StarRing 𝔸]
     [CStarRing 𝔸] [Nontrivial 𝔸] [StarModule ℝ 𝔸]
-    (H : Fin P.Γ → 𝔸) (h_skew : ∀ γ : Fin P.Γ, star (H γ) = -(H γ)) (s : ℝ) :
+    (H : Fin Γ → 𝔸) (h_skew : ∀ γ : Fin Γ, star (H γ) = -(H γ)) (s : ℝ) :
     ‖P.eval H s‖ ≤ 1 := by
   calc
     ‖P.eval H s‖
-        ≤ (P.evalIndexList.map (fun i => ‖P.evalFactor H i s‖)).prod := by
+        ≤ ((evalIndexList Υ Γ).map (fun i => ‖P.evalFactor H i s‖)).prod := by
             simpa [ProductFormulaData.eval, List.map_map, Function.comp_def] using
-              List.norm_prod_le (P.evalIndexList.map (fun i => P.evalFactor H i s))
+              List.norm_prod_le ((evalIndexList Υ Γ).map (fun i => P.evalFactor H i s))
     _ = 1 := by
-        have hfac : ∀ i : Fin P.Υ × Fin P.Γ, ‖P.evalFactor H i s‖ = 1 := by
+        have hfac : ∀ i : Fin Υ × Fin Γ, ‖P.evalFactor H i s‖ = 1 := by
           rintro ⟨υ, γ⟩
           have hA_skew : star (P.generator H (υ, γ)) = -(P.generator H (υ, γ)) :=
             star_smul_of_skew (h_skew (P.perm υ γ))
@@ -616,15 +621,15 @@ lemma natCast_mul_pow_div_pow_succ (a : ℝ) (r p : ℕ) (hr : (r : ℝ) ≠ 0) 
 /-- `cor:trotter_number_one_norm_scaling`: for anti-Hermitian summands, the `r`-step
 Trotter error decays as `O(r^{-p})` as `r → ∞`; equivalently, `r = O(ε^{-1/p})` steps
 suffice for accuracy `ε`. -/
-theorem trotter_number_one_norm_scaling (P : ProductFormulaData) {𝔸 : Type*} [NormedRing 𝔸]
+theorem trotter_number_one_norm_scaling
     [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸] [StarRing 𝔸]
     [CStarRing 𝔸] [Nontrivial 𝔸] [StarModule ℝ 𝔸]
-    (H : Fin P.Γ → 𝔸) (p : ℕ) (h_skew : ∀ γ : Fin P.Γ, star (H γ) = -(H γ))
+    (H : Fin Γ → 𝔸) (p : ℕ) (h_skew : ∀ γ : Fin Γ, star (H γ) = -(H γ))
     (h_order : P.IsOrderOf p H) (t : ℝ) (ht : 0 ≤ t) :
-    (fun r : ℕ => ‖(P.eval H (t / (r : ℝ))) ^ r - exp (t • ∑ γ : Fin P.Γ, H γ)‖) =O[Filter.atTop]
+    (fun r : ℕ => ‖(P.eval H (t / (r : ℝ))) ^ r - exp (t • ∑ γ : Fin Γ, H γ)‖) =O[Filter.atTop]
       (fun r : ℕ => ((r : ℝ) ^ p)⁻¹) := by
-  let S : 𝔸 := ∑ γ : Fin P.Γ, H γ
-  let Snorm : ℝ := ∑ γ : Fin P.Γ, ‖H γ‖
+  let S : 𝔸 := ∑ γ : Fin Γ, H γ
+  let Snorm : ℝ := ∑ γ : Fin Γ, ‖H γ‖
   have hS_skew : star S = -S := sum_skewAdjoint H h_skew
   have hSnorm : 0 ≤ Snorm := Finset.sum_nonneg (fun γ _ => norm_nonneg _)
   have hO : (fun s : ℝ => ‖P.eval H s - exp (s • S)‖) =O[𝓝 (0 : ℝ)]

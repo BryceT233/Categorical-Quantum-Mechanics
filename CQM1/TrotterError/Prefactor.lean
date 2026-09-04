@@ -6,6 +6,8 @@ Authors: Foresight Quantum
 module
 
 public import CQM1.TrotterError.ExpSMulConj
+public import CQM1.TrotterError.ProductFormula
+public import CQM1.TrotterError.Suzuki
 
 import CQM1.TrotterError.TimeOrderedExp
 
@@ -39,25 +41,6 @@ open scoped BigOperators algebraMap
 
 /- The associative-ring Lie bracket `⁅A, B⁆ = A * B - B * A`, matching `Commutator.lean`. -/
 attribute [local instance] LieRing.ofAssociativeRing
-
-/-- The first-order Lie-Trotter formula `∏_{γ=1}^Γ e^{t K_γ} = e^{t K_{Γ-1}} ⋯ e^{t K_0}` (the
-paper's `∏_{γ=1}^Γ A_γ = A_Γ ⋯ A_1` convention, in 0-based `Fin Γ`), defined by peeling the
-innermost (rightmost) factor `K 0`. -/
-noncomputable def lieTrotter {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸]
-    {Γ : ℕ} (K : Fin Γ → 𝔸) (t : ℝ) : 𝔸 :=
-  match Γ with
-  | 0 => 1
-  | n + 1 => lieTrotter (fun i : Fin n => K i.succ) t * exp (t • K 0)
-
-/-- The second-order Suzuki formula, defined recursively by peeling the outermost (index-`0`)
-factor: `S₂(K, t) = e^{(t/2)K₀} · S₂(K ∘ Fin.succ, t) · e^{(t/2)K₀}`. This is the ordered product
-`e^{(t/2)K₀} ⋯ e^{(t/2)K_{Γ-1}} · e^{(t/2)K_{Γ-1}} ⋯ e^{(t/2)K₀}` (the paper's
-`∏_{γ=Γ}^1 e^{(t/2)K_γ} · ∏_{γ=1}^Γ e^{(t/2)K_γ}`, in anti-Hermitian-generator form). -/
-noncomputable def suzuki2 {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
-    {Γ : ℕ} (K : Fin Γ → 𝔸) (t : ℝ) : 𝔸 :=
-  match Γ with
-  | 0 => 1
-  | n + 1 => exp ((t / 2) • K 0) * suzuki2 (fun i : Fin n => K i.succ) t * exp ((t / 2) • K 0)
 
 /-! ### Two-summand Duhamel identity -/
 

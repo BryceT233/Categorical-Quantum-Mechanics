@@ -108,9 +108,8 @@ lemma intervalIntegral_one_sub_pow (p : ℕ) :
               (a := 0) (b := 1) (d := 1))
     _ = (1 : ℝ) / ((p + 1 : ℕ) : ℝ) := by
         have hp : (p + 1 : ℕ) ≠ 0 := Nat.succ_ne_zero p
-        rw [integral_pow, one_pow, zero_pow hp,
-          show ((p + 1 : ℕ) : ℝ) = (p : ℝ) + 1 by norm_num]
-        ring
+        rw [integral_pow, one_pow, zero_pow hp]
+        simp
 
 /-- `∫₀ᵗ C · |τ|^p / p! dτ = (C / p!) · t^{p+1}/(p+1)`, for `t ≥ 0`. -/
 lemma intervalIntegral_const_mul_abs_pow_div_factorial (C : ℝ) (p : ℕ) (t : ℝ) (ht : 0 ≤ t) :
@@ -129,11 +128,8 @@ lemma intervalIntegral_const_mul_abs_pow_div_factorial (C : ℝ) (p : ℕ) (t : 
             apply intervalIntegral.integral_congr_uIoo
             intro τ hτ
             have hτ_pos : 0 < τ := by simpa [Set.uIoo, min_eq_left ht] using hτ.1
-            change |τ| ^ p = τ ^ p
-            rw [abs_of_nonneg hτ_pos.le]
-    _ = (C / (Nat.factorial p : ℝ)) * (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) := by
-            congr 1
-            simp
+            simp [abs_of_nonneg hτ_pos.le]
+    _ = (C / (Nat.factorial p : ℝ)) * (t ^ (p + 1) / ((p + 1 : ℕ) : ℝ)) := by simp
 
 /-- `∫₀ᵗ (C · |τ|^p / p!) · E dτ = (C / p!) · E · t^{p+1}/(p+1)`, for `t ≥ 0` and any constant
 `E`. -/

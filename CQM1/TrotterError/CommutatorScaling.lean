@@ -28,13 +28,18 @@ namespace TrotterError
 
 open NormedSpace Asymptotics Finset
 open TrotterError.List
+open ProductFormulaData
 open scoped Topology BigOperators algebraMap
+
+variable {Υ Γ : ℕ}
+variable {𝔸 : Type*} [NormedRing 𝔸]
+variable (P : ProductFormulaData Υ Γ)
 
 /-! ### M5 bridge: `additiveKernel` is a sum of `multiConj` at `-τ` -/
 
 /-- A `multiConj` whose `A` sequence is `gen ∘ l.get` equals the `List.prod`-form
 `(l.reverse.map (exp (τ • gen ·))).prod * B * (l.map (exp (-τ • gen ·))).prod`. -/
-lemma multiConj_ofFn_get {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸] {ι : Type*}
+lemma multiConj_ofFn_get [NormedAlgebra ℝ 𝔸] {ι : Type*}
     (l : List ι) (gen : ι → 𝔸) (B : 𝔸) (τ : ℝ) :
     multiConj (fun k : Fin l.length => gen (l.get k)) B τ =
       (l.reverse.map (fun j => exp (τ • gen j))).prod * B *
@@ -45,34 +50,34 @@ lemma multiConj_ofFn_get {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ �
 
 /-- Each additive-kernel summand is the `multiConj` of its suffix generators at `-τ`
 (rep.tex:9, the `(υ,γ)`-th term of `𝒯`). -/
-lemma additiveKernel_summand_eq_multiConj (P : ProductFormulaData) {𝔸 : Type*}
-    [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸] (H : Fin P.Γ → 𝔸) (i : Fin P.Υ × Fin P.Γ) (τ : ℝ) :
+lemma additiveKernel_summand_eq_multiConj
+    [NormedAlgebra ℝ 𝔸] (H : Fin Γ → 𝔸) (i : Fin Υ × Fin Γ) (τ : ℝ) :
     invStrictSuffixFactorProd P H i τ * P.generator H i * strictSuffixFactorProd P H i τ
       = multiConj (suffixGenerators P H i) (P.generator H i) (-τ) := by
   unfold invStrictSuffixFactorProd strictSuffixFactorProd factorProdOver suffixGenerators
-  rw [multiConj_ofFn_get (P.evalIndexList.drop (P.evalIndexList.idxOf i + 1))
+  rw [multiConj_ofFn_get ((evalIndexList Υ Γ).drop ((evalIndexList Υ Γ).idxOf i + 1))
     (fun j => P.generator H j) (P.generator H i) (-τ)]
   simp [ProductFormulaData.evalFactor]
 
 /-- The full-product term of `additiveKernel` is the `multiConj` of all generators at `-τ`
 (rep.tex:10). -/
-lemma additiveKernel_full_eq_multiConj (P : ProductFormulaData) {𝔸 : Type*}
-    [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸] (H : Fin P.Γ → 𝔸) (τ : ℝ) :
-    factorProdOver P H (-τ) (P.evalIndexList.reverse) * (∑ γ : Fin P.Γ, H γ) *
-        factorProdOver P H τ (P.evalIndexList)
-      = multiConj (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) (-τ) := by
+lemma additiveKernel_full_eq_multiConj
+    [NormedAlgebra ℝ 𝔸] (H : Fin Γ → 𝔸) (τ : ℝ) :
+    factorProdOver P H (-τ) ((evalIndexList Υ Γ).reverse) * (∑ γ : Fin Γ, H γ) *
+        factorProdOver P H τ (evalIndexList Υ Γ)
+      = multiConj (orderedGenerators P H) (∑ γ : Fin Γ, H γ) (-τ) := by
   unfold factorProdOver orderedGenerators
-  rw [multiConj_ofFn_get P.evalIndexList (fun j => P.generator H j) (∑ γ : Fin P.Γ, H γ) (-τ)]
+  rw [multiConj_ofFn_get (evalIndexList Υ Γ) (fun j => P.generator H j) (∑ γ : Fin Γ, H γ) (-τ)]
   simp [ProductFormulaData.evalFactor]
 
 /-- `additiveKernel P H τ = Σ_i multiConj A_i (gen_i) (-τ) − multiConj A_all (ΣH) (-τ)`
 (rep.tex:5-12, the bridge to the commutator expansion). -/
-lemma additiveKernel_eq_sum_multiConj (P : ProductFormulaData) {𝔸 : Type*}
-    [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸] (H : Fin P.Γ → 𝔸) (τ : ℝ) :
+lemma additiveKernel_eq_sum_multiConj
+    [NormedAlgebra ℝ 𝔸] (H : Fin Γ → 𝔸) (τ : ℝ) :
     additiveKernel P H τ =
-      (∑ i : Fin P.Υ × Fin P.Γ,
+      (∑ i : Fin Υ × Fin Γ,
         multiConj (suffixGenerators P H i) (P.generator H i) (-τ))
-        - multiConj (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) (-τ) := by
+        - multiConj (orderedGenerators P H) (∑ γ : Fin Γ, H γ) (-τ) := by
   unfold additiveKernel
   congr 1
   · apply sum_congr rfl
@@ -84,7 +89,7 @@ lemma additiveKernel_eq_sum_multiConj (P : ProductFormulaData) {𝔸 : Type*}
 
 /-- The commutator remainder `𝒞(τ)` is `O(τ^p)` as `τ → 0` (the exponential factor tends to
 `1`). -/
-lemma commutatorRemainder_isBigO {s} {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸]
+lemma commutatorRemainder_isBigO {s} [NormedAlgebra ℚ 𝔸]
     [NormedAlgebra ℝ 𝔸] [NormOneClass 𝔸] (A : Fin s → 𝔸) (B : 𝔸) (p : ℕ) :
     (fun τ : ℝ => ‖commutatorRemainder A B p τ‖) =O[𝓝 (0 : ℝ)] (fun τ : ℝ => τ ^ p) := by
   let g : ℝ → ℝ := fun τ => αCommConj A B p * |τ| ^ p / (Nat.factorial p : ℝ) *
@@ -92,9 +97,8 @@ lemma commutatorRemainder_isBigO {s} {𝔸 : Type*} [NormedRing 𝔸] [NormedAlg
   have hle : (fun τ : ℝ => ‖commutatorRemainder A B p τ‖) =O[𝓝 (0 : ℝ)] g := by
     refine IsBigO.of_bound 1 ?_
     filter_upwards with τ
-    have hg_nonneg : 0 ≤ g τ := by
-      dsimp [g]
-      exact mul_nonneg (div_nonneg (mul_nonneg (αCommConj_nonneg A B p)
+    have hg_nonneg : 0 ≤ g τ := mul_nonneg
+      (div_nonneg (mul_nonneg (αCommConj_nonneg A B p)
         (pow_nonneg (abs_nonneg τ) p)) (Nat.cast_nonneg _)) (le_of_lt (Real.exp_pos _))
     rw [Real.norm_of_nonneg (norm_nonneg _), Real.norm_of_nonneg hg_nonneg, one_mul]
     simpa [g] using norm_commutatorRemainder_le A B p τ
@@ -111,7 +115,6 @@ lemma commutatorRemainder_isBigO {s} {𝔸 : Type*} [NormedRing 𝔸] [NormedAlg
       (isBigO_norm_one_of_continuous (F := fun τ : ℝ => Real.exp (2 * |τ| * ∑ i : Fin s, ‖A i‖))
         (by fun_prop))
   have hg : g =O[𝓝 (0 : ℝ)] (fun τ : ℝ => τ ^ p) := by
-    dsimp [g]
     have hprod : (fun τ : ℝ => |τ| ^ p * Real.exp (2 * |τ| * ∑ i : Fin s, ‖A i‖))
         =O[𝓝 (0 : ℝ)] (fun τ : ℝ => τ ^ p * (1 : ℝ)) := hpow.mul hexp
     have hprod' : (fun τ : ℝ => |τ| ^ p * Real.exp (2 * |τ| * ∑ i : Fin s, ‖A i‖))
@@ -123,66 +126,66 @@ lemma commutatorRemainder_isBigO {s} {𝔸 : Type*} [NormedRing 𝔸] [NormedAlg
 
 /-- `thm:trotter_error_order_cond` cancellation step (theory.tex:258-264): under the order condition
 `P.IsOrderOf p H`, the additive kernel is exactly the difference of the commutator remainders. -/
-lemma additiveKernel_eq_commutatorRemainder_sum (P : ProductFormulaData) {𝔸 : Type*}
-    [NormedRing 𝔸] [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [NormOneClass 𝔸] [CompleteSpace 𝔸]
-    (H : Fin P.Γ → 𝔸) (p : ℕ) (hp : 1 ≤ p) (h_order : P.IsOrderOf p H) (τ : ℝ) :
+lemma additiveKernel_eq_commutatorRemainder_sum
+    [NormedAlgebra ℚ 𝔸] [NormedAlgebra ℝ 𝔸] [NormOneClass 𝔸] [CompleteSpace 𝔸]
+    (H : Fin Γ → 𝔸) (p : ℕ) (hp : 1 ≤ p) (h_order : P.IsOrderOf p H) (τ : ℝ) :
     additiveKernel P H τ =
-      (∑ i : Fin P.Υ × Fin P.Γ,
+      (∑ i : Fin Υ × Fin Γ,
         commutatorRemainder (suffixGenerators P H i) (P.generator H i) p (-τ))
         - commutatorRemainder (orderedGenerators P H) (∑ γ, H γ) p (-τ) := by
   let T : ℕ → 𝔸 := fun j =>
-    (∑ i : Fin P.Υ × Fin P.Γ, conjCoeff (suffixGenerators P H i) (P.generator H i) j)
-      - conjCoeff (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) j
+    (∑ i : Fin Υ × Fin Γ, conjCoeff (suffixGenerators P H i) (P.generator H i) j)
+      - conjCoeff (orderedGenerators P H) (∑ γ : Fin Γ, H γ) j
   let poly : ℝ → 𝔸 := fun σ => ∑ j ∈ range p, T j * (σ ^ j : 𝔸)
   let remSum : ℝ → 𝔸 := fun σ =>
-    ∑ i : Fin P.Υ × Fin P.Γ, commutatorRemainder (suffixGenerators P H i) (P.generator H i) p σ
+    ∑ i : Fin Υ × Fin Γ, commutatorRemainder (suffixGenerators P H i) (P.generator H i) p σ
   let remAll : ℝ → 𝔸 := fun σ =>
-    commutatorRemainder (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p σ
+    commutatorRemainder (orderedGenerators P H) (∑ γ : Fin Γ, H γ) p σ
   have h_rearrange (τ : ℝ) :
-      (∑ i : Fin P.Υ × Fin P.Γ, ((∑ j ∈ range p,
+      (∑ i : Fin Υ × Fin Γ, ((∑ j ∈ range p,
             conjCoeff (suffixGenerators P H i) (P.generator H i) j * (τ ^ j : 𝔸))
           + commutatorRemainder (suffixGenerators P H i) (P.generator H i) p τ))
         - ((∑ j ∈ range p,
-            conjCoeff (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) j * (τ ^ j : 𝔸))
-          + commutatorRemainder (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p τ)
+            conjCoeff (orderedGenerators P H) (∑ γ : Fin Γ, H γ) j * (τ ^ j : 𝔸))
+          + commutatorRemainder (orderedGenerators P H) (∑ γ : Fin Γ, H γ) p τ)
         = (∑ j ∈ range p, T j * (τ ^ j : 𝔸))
-          + (∑ i : Fin P.Υ × Fin P.Γ,
+          + (∑ i : Fin Υ × Fin Γ,
               commutatorRemainder (suffixGenerators P H i) (P.generator H i) p τ)
-          - commutatorRemainder (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p τ := by
+          - commutatorRemainder (orderedGenerators P H) (∑ γ : Fin Γ, H γ) p τ := by
     dsimp [T]
     rw [sum_add_distrib]
-    have hpoly : (∑ i : Fin P.Υ × Fin P.Γ, ∑ j ∈ range p,
+    have hpoly : (∑ i : Fin Υ × Fin Γ, ∑ j ∈ range p,
           conjCoeff (suffixGenerators P H i) (P.generator H i) j * (τ ^ j : 𝔸))
         - (∑ j ∈ range p,
-          conjCoeff (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) j * (τ ^ j : 𝔸))
+          conjCoeff (orderedGenerators P H) (∑ γ : Fin Γ, H γ) j * (τ ^ j : 𝔸))
         = ∑ j ∈ range p,
-          ((∑ i : Fin P.Υ × Fin P.Γ, conjCoeff (suffixGenerators P H i) (P.generator H i) j)
-            - conjCoeff (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) j) * (τ ^ j : 𝔸) := by
+          ((∑ i : Fin Υ × Fin Γ, conjCoeff (suffixGenerators P H i) (P.generator H i) j)
+            - conjCoeff (orderedGenerators P H) (∑ γ : Fin Γ, H γ) j) * (τ ^ j : 𝔸) := by
       rw [sum_comm, ← sum_sub_distrib]
       apply sum_congr rfl
       intro j _
       rw [← sum_mul, sub_mul]
     calc
-      (∑ i : Fin P.Υ × Fin P.Γ, ∑ j ∈ range p,
+      (∑ i : Fin Υ × Fin Γ, ∑ j ∈ range p,
           conjCoeff (suffixGenerators P H i) (P.generator H i) j * (τ ^ j : 𝔸))
-        + (∑ i : Fin P.Υ × Fin P.Γ,
+        + (∑ i : Fin Υ × Fin Γ,
               commutatorRemainder (suffixGenerators P H i) (P.generator H i) p τ)
         - ((∑ j ∈ range p,
-          conjCoeff (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) j * (τ ^ j : 𝔸))
-        + commutatorRemainder (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p τ)
-          = ((∑ i : Fin P.Υ × Fin P.Γ, ∑ j ∈ range p,
+          conjCoeff (orderedGenerators P H) (∑ γ : Fin Γ, H γ) j * (τ ^ j : 𝔸))
+        + commutatorRemainder (orderedGenerators P H) (∑ γ : Fin Γ, H γ) p τ)
+          = ((∑ i : Fin Υ × Fin Γ, ∑ j ∈ range p,
               conjCoeff (suffixGenerators P H i) (P.generator H i) j * (τ ^ j : 𝔸))
             - (∑ j ∈ range p,
-              conjCoeff (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) j * (τ ^ j : 𝔸)))
-            + (∑ i : Fin P.Υ × Fin P.Γ,
+              conjCoeff (orderedGenerators P H) (∑ γ : Fin Γ, H γ) j * (τ ^ j : 𝔸)))
+            + (∑ i : Fin Υ × Fin Γ,
               commutatorRemainder (suffixGenerators P H i) (P.generator H i) p τ)
-            - commutatorRemainder (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p τ := by abel
+            - commutatorRemainder (orderedGenerators P H) (∑ γ : Fin Γ, H γ) p τ := by abel
       _ = (∑ j ∈ range p,
-            ((∑ i : Fin P.Υ × Fin P.Γ, conjCoeff (suffixGenerators P H i) (P.generator H i) j)
-              - conjCoeff (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) j) * (τ ^ j : 𝔸))
-          + (∑ i : Fin P.Υ × Fin P.Γ,
+            ((∑ i : Fin Υ × Fin Γ, conjCoeff (suffixGenerators P H i) (P.generator H i) j)
+              - conjCoeff (orderedGenerators P H) (∑ γ : Fin Γ, H γ) j) * (τ ^ j : 𝔸))
+          + (∑ i : Fin Υ × Fin Γ,
               commutatorRemainder (suffixGenerators P H i) (P.generator H i) p τ)
-          - commutatorRemainder (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p τ := by rw [hpoly]
+          - commutatorRemainder (orderedGenerators P H) (∑ γ : Fin Γ, H γ) p τ := by rw [hpoly]
   have h_expand : ∀ τ : ℝ, additiveKernel P H τ = poly (-τ) + remSum (-τ) - remAll (-τ) := by
     intro τ
     dsimp [poly, remSum, remAll]
@@ -190,23 +193,23 @@ lemma additiveKernel_eq_commutatorRemainder_sum (P : ProductFormulaData) {𝔸 :
     conv_lhs =>
       rw [sum_congr rfl (fun i _ =>
         commutatorExpansion_conj (suffixGenerators P H i) (P.generator H i) p (-τ) hp)]
-      rw [commutatorExpansion_conj (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p (-τ) hp]
+      rw [commutatorExpansion_conj (orderedGenerators P H) (∑ γ : Fin Γ, H γ) p (-τ) hp]
     exact h_rearrange (-τ)
   have hkernel : (fun τ : ℝ => ‖additiveKernel P H τ‖) =O[𝓝 (0 : ℝ)] (fun τ : ℝ => τ ^ p) :=
     (errorOrderCond_additive_iff P p H).mp h_order
-  have hrem_i : ∀ i : Fin P.Υ × Fin P.Γ,
+  have hrem_i : ∀ i : Fin Υ × Fin Γ,
       (fun τ : ℝ => ‖commutatorRemainder (suffixGenerators P H i) (P.generator H i) p (-τ)‖)
         =O[𝓝 (0 : ℝ)] (fun τ : ℝ => τ ^ p) := by
     intro i
     have hcomp := (commutatorRemainder_isBigO (suffixGenerators P H i)
       (P.generator H i) p).comp_tendsto tendsto_neg_nhds_zero
     exact hcomp.trans (neg_pow_isBigO p)
-  have hremSum : (fun τ : ℝ => ‖∑ i : Fin P.Υ × Fin P.Γ,
+  have hremSum : (fun τ : ℝ => ‖∑ i : Fin Υ × Fin Γ,
       commutatorRemainder (suffixGenerators P H i) (P.generator H i) p (-τ)‖)
       =O[𝓝 (0 : ℝ)] (fun τ : ℝ => τ ^ p) := by
-    have htri : (fun τ : ℝ => ‖∑ i : Fin P.Υ × Fin P.Γ,
+    have htri : (fun τ : ℝ => ‖∑ i : Fin Υ × Fin Γ,
         commutatorRemainder (suffixGenerators P H i) (P.generator H i) p (-τ)‖)
-        =O[𝓝 (0 : ℝ)] (fun τ : ℝ => ∑ i : Fin P.Υ × Fin P.Γ,
+        =O[𝓝 (0 : ℝ)] (fun τ : ℝ => ∑ i : Fin Υ × Fin Γ,
         ‖commutatorRemainder (suffixGenerators P H i) (P.generator H i) p (-τ)‖) := by
       refine IsBigO.of_bound 1 ?_
       filter_upwards with τ
@@ -214,17 +217,17 @@ lemma additiveKernel_eq_commutatorRemainder_sum (P : ProductFormulaData) {𝔸 :
         Real.norm_of_nonneg (sum_nonneg (fun _ _ => norm_nonneg _)), one_mul]
       exact norm_sum_le univ
         (fun i => commutatorRemainder (suffixGenerators P H i) (P.generator H i) p (-τ))
-    have hsum : (fun τ : ℝ => ∑ i : Fin P.Υ × Fin P.Γ,
+    have hsum : (fun τ : ℝ => ∑ i : Fin Υ × Fin Γ,
         ‖commutatorRemainder (suffixGenerators P H i) (P.generator H i) p (-τ)‖)
         =O[𝓝 (0 : ℝ)] (fun τ : ℝ => τ ^ p) := by
-      simpa [Finset.sum_fn] using IsBigO.sum (s := (univ : Finset (Fin P.Υ × Fin P.Γ)))
+      simpa [Finset.sum_fn] using IsBigO.sum (s := (univ : Finset (Fin Υ × Fin Γ)))
         (fun i _ => hrem_i i)
     exact htri.trans hsum
   have hremAll :
-      (fun τ : ℝ => ‖commutatorRemainder (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p (-τ)‖)
+      (fun τ : ℝ => ‖commutatorRemainder (orderedGenerators P H) (∑ γ : Fin Γ, H γ) p (-τ)‖)
       =O[𝓝 (0 : ℝ)] (fun τ : ℝ => τ ^ p) := by
     have hcomp := (commutatorRemainder_isBigO (orderedGenerators P H)
-      (∑ γ : Fin P.Γ, H γ) p).comp_tendsto tendsto_neg_nhds_zero
+      (∑ γ : Fin Γ, H γ) p).comp_tendsto tendsto_neg_nhds_zero
     exact hcomp.trans (neg_pow_isBigO p)
   have hpoly_neg : (fun τ : ℝ => ‖poly (-τ)‖) =O[𝓝 (0 : ℝ)] (fun τ : ℝ => τ ^ p) := by
     have htri : (fun τ : ℝ => ‖poly (-τ)‖) =O[𝓝 (0 : ℝ)]
@@ -264,8 +267,8 @@ lemma additiveKernel_eq_commutatorRemainder_sum (P : ProductFormulaData) {𝔸 :
   calc
     additiveKernel P H τ = poly (-τ) + remSum (-τ) - remAll (-τ) := h_expand τ
     _ = remSum (-τ) - remAll (-τ) := by simp [hpoly_zero]
-    _ = (∑ i : Fin P.Υ × Fin P.Γ,
+    _ = (∑ i : Fin Υ × Fin Γ,
         commutatorRemainder (suffixGenerators P H i) (P.generator H i) p (-τ))
-        - commutatorRemainder (orderedGenerators P H) (∑ γ : Fin P.Γ, H γ) p (-τ) := rfl
+        - commutatorRemainder (orderedGenerators P H) (∑ γ : Fin Γ, H γ) p (-τ) := rfl
 
 end TrotterError

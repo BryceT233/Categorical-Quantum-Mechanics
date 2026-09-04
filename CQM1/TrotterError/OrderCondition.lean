@@ -45,7 +45,12 @@ namespace TrotterError
 
 open Asymptotics
 open TrotterError.List
+open ProductFormulaData
 open scoped Topology ContDiff algebraMap
+
+variable {Υ Γ : ℕ}
+variable {𝔸 : Type*} [NormedRing 𝔸]
+variable (P : ProductFormulaData Υ Γ)
 
 /-! ### The `p`-th order condition (`P.IsOrderOf`) -/
 
@@ -55,9 +60,9 @@ open NormedSpace
 
 /-- `P` is a `p`-th order formula on summands `H` if `‖𝒮(t) − e^{tH}‖ = O(t^{p+1})`
 as `t → 0` (`prelim.tex:150`). -/
-def IsOrderOf (P : ProductFormulaData) (p : ℕ) {𝔸 : Type*} [NormedRing 𝔸]
-    [NormedSpace ℝ 𝔸] (H : Fin P.Γ → 𝔸) : Prop :=
-  (fun t : ℝ => ‖P.eval H t - exp (t • ∑ γ : Fin P.Γ, H γ)‖)
+def IsOrderOf {Υ Γ : ℕ} (P : ProductFormulaData Υ Γ) (p : ℕ) {𝔸 : Type*} [NormedRing 𝔸]
+    [NormedSpace ℝ 𝔸] (H : Fin Γ → 𝔸) : Prop :=
+  (fun t : ℝ => ‖P.eval H t - exp (t • ∑ γ : Fin Γ, H γ)‖)
     =O[𝓝 (0 : ℝ)] (fun t : ℝ => t ^ (p + 1))
 
 end ProductFormulaData
@@ -110,7 +115,7 @@ lemma isBigO_norm_iff_iteratedDeriv_lt_eq_zero {E : Type*} [NormedAddCommGroup E
 /-! ### Addition and multiplication -/
 
 /-- Addition rule (order.tex:80): `F = O(τ^p)` and `G = O(τ^q)` imply `F + G = O(τ^{min p q})`. -/
-theorem orderCond_add {𝔸 : Type*} [NormedRing 𝔸] (F G : ℝ → 𝔸) (p q : ℕ)
+theorem orderCond_add (F G : ℝ → 𝔸) (p q : ℕ)
     (hF : (fun τ => ‖F τ‖) =O[𝓝 (0 : ℝ)] (fun τ => τ ^ p))
     (hG : (fun τ => ‖G τ‖) =O[𝓝 (0 : ℝ)] (fun τ => τ ^ q)) :
     (fun τ => ‖F τ + G τ‖) =O[𝓝 (0 : ℝ)] (fun τ => τ ^ min p q) := by
@@ -136,7 +141,7 @@ theorem orderCond_add {𝔸 : Type*} [NormedRing 𝔸] (F G : ℝ → 𝔸) (p q
 
 /-- Multiplication rule (order.tex:81): `F = O(τ^p)` and `G = O(τ^q)` imply
 `F * G = O(τ^{p+q})`. -/
-theorem orderCond_mul {𝔸 : Type*} [NormedRing 𝔸] (F G : ℝ → 𝔸) (p q : ℕ)
+theorem orderCond_mul (F G : ℝ → 𝔸) (p q : ℕ)
     (hF : (fun τ => ‖F τ‖) =O[𝓝 (0 : ℝ)] (fun τ => τ ^ p))
     (hG : (fun τ => ‖G τ‖) =O[𝓝 (0 : ℝ)] (fun τ => τ ^ q)) :
     (fun τ => ‖F τ * G τ‖) =O[𝓝 (0 : ℝ)] (fun τ => τ ^ (p + q)) := by
@@ -151,7 +156,7 @@ theorem orderCond_mul {𝔸 : Type*} [NormedRing 𝔸] (F G : ℝ → 𝔸) (p q
 /-! ### Differentiation -/
 
 /-- Differentiation rule (order.tex:82): `F = O(τ^{p+1})` iff `F 0 = 0` and `F' = O(τ^p)`. -/
-theorem orderCond_deriv_iff {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
+theorem orderCond_deriv_iff [NormedAlgebra ℝ 𝔸]
     (F : ℝ → 𝔸) (p : ℕ) (hF : ContDiff ℝ ∞ F) :
     (fun τ => ‖F τ‖) =O[𝓝 (0 : ℝ)] (fun τ => τ ^ (p + 1)) ↔
       F 0 = 0 ∧ (fun τ => ‖deriv F τ‖) =O[𝓝 (0 : ℝ)] (fun τ => τ ^ p) := by
@@ -176,7 +181,7 @@ theorem orderCond_deriv_iff {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 
 /-! ### Integration -/
 
 /-- For smooth `F`, the function `t ↦ ∫₀ᵗ F` is smooth. -/
-lemma contDiff_integral_of_contDiff {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
+lemma contDiff_integral_of_contDiff [NormedAlgebra ℝ 𝔸]
     [CompleteSpace 𝔸] (F : ℝ → 𝔸) (hF : ContDiff ℝ ∞ F) :
     ContDiff ℝ ∞ (fun t => ∫ τ in 0..t, F τ) := by
   let IF : ℝ → 𝔸 := fun t => ∫ τ in 0..t, F τ
@@ -191,7 +196,7 @@ lemma contDiff_integral_of_contDiff {𝔸 : Type*} [NormedRing 𝔸] [NormedAlge
   exact (contDiff_infty_iff_deriv (f := IF)).mpr ⟨hdiff, by simpa [hderiv] using hF⟩
 
 /-- Integration rule (order.tex:83): `F = O(τ^p)` iff `∫₀ᵗ F = O(t^{p+1})`. -/
-theorem orderCond_integral_iff {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
+theorem orderCond_integral_iff [NormedAlgebra ℝ 𝔸]
     [CompleteSpace 𝔸] (F : ℝ → 𝔸) (p : ℕ) (hF : ContDiff ℝ ∞ F) :
     (fun τ => ‖F τ‖) =O[𝓝 (0 : ℝ)] (fun τ => τ ^ p) ↔
       (fun t => ‖∫ τ in 0..t, F τ‖) =O[𝓝 (0 : ℝ)] (fun t => t ^ (p + 1)) := by
@@ -225,7 +230,7 @@ theorem orderCond_integral_iff {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra �
 /-! ### Exponentiation -/
 
 /-- For smooth `H`, the solution `t ↦ exp_T(∫₀ᵗ H)` is smooth. -/
-lemma contDiff_timeOrderedExp_of_contDiff {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
+lemma contDiff_timeOrderedExp_of_contDiff [NormedAlgebra ℝ 𝔸]
     [CompleteSpace 𝔸] (H : ℝ → 𝔸) (hH : ContDiff ℝ ∞ H) :
     ContDiff ℝ ∞ (fun t => timeOrderedExp H 0 t) := by
   let U : ℝ → 𝔸 := fun t => timeOrderedExp H 0 t
@@ -251,7 +256,7 @@ lemma contDiff_timeOrderedExp_of_contDiff {𝔸 : Type*} [NormedRing 𝔸] [Norm
 /-- The recurrence for iterated derivatives of `t ↦ exp_T(∫₀ᵗ H)` at `0`: the `(j+1)`-st
 iterated derivative is `iteratedDeriv j H 0` plus terms built from strictly lower derivatives of
 `H` and lower iterated derivatives of the time-ordered exponential. -/
-lemma iteratedDeriv_timeOrderedExp_succ {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
+lemma iteratedDeriv_timeOrderedExp_succ [NormedAlgebra ℝ 𝔸]
     [CompleteSpace 𝔸] (H : ℝ → 𝔸) (hH : ContDiff ℝ ∞ H) (j : ℕ) :
     iteratedDeriv (j + 1) (fun t => timeOrderedExp H 0 t) 0 =
       (∑ i ∈ Finset.range j, (j.choose i : 𝔸) * iteratedDeriv i H 0 *
@@ -284,7 +289,7 @@ lemma iteratedDeriv_timeOrderedExp_succ {𝔸 : Type*} [NormedRing 𝔸] [Normed
 /-- The derivative-comparison heart of the exponentiation rule: the generators agree to order
 `p - 1` (all iterated derivatives of order `< p` coincide at `0`) iff the associated time-ordered
 exponentials agree to order `p` (all iterated derivatives of order `≤ p` coincide at `0`). -/
-lemma timeOrderedExp_iteratedDeriv_eq_iff {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
+lemma timeOrderedExp_iteratedDeriv_eq_iff [NormedAlgebra ℝ 𝔸]
     [CompleteSpace 𝔸] (F G : ℝ → 𝔸) (p : ℕ)
     (hF : ContDiff ℝ ∞ F) (hG : ContDiff ℝ ∞ G) :
     (∀ j, j < p → iteratedDeriv j F 0 = iteratedDeriv j G 0) ↔
@@ -365,7 +370,7 @@ lemma timeOrderedExp_iteratedDeriv_eq_iff {𝔸 : Type*} [NormedRing 𝔸] [Norm
 
 /-- Exponentiation rule (order.tex:84): `F = G + O(τ^p)` iff
 `exp_T(∫₀ᵗ F) = exp_T(∫₀ᵗ G) + O(t^{p+1})`. -/
-theorem orderCond_exp_iff {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸]
+theorem orderCond_exp_iff [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸]
     (F G : ℝ → 𝔸) (p : ℕ) (hF : ContDiff ℝ ∞ F) (hG : ContDiff ℝ ∞ G) :
     (fun τ => ‖F τ - G τ‖) =O[𝓝 (0 : ℝ)] (fun τ => τ ^ p) ↔
       (fun t => ‖timeOrderedExp F 0 t - timeOrderedExp G 0 t‖) =O[𝓝 (0 : ℝ)]
@@ -474,8 +479,6 @@ section ErrorOrderCond
 
 open NormedSpace
 
-variable {𝔸 : Type*} [NormedRing 𝔸]
-
 /-- A continuous function is `O(1)` at `0` (bounded in a neighbourhood of `0`). -/
 lemma isBigO_norm_one_of_continuous {F : ℝ → 𝔸} (hF : Continuous F) :
     (fun τ => ‖F τ‖) =O[𝓝 (0 : ℝ)] (fun _ => (1 : ℝ)) :=
@@ -497,10 +500,10 @@ lemma orderCond_mul_right {F G : ℝ → 𝔸} (p : ℕ)
 
 /-- Every value of the product formula `𝒮(τ)` is a unit (a product of unit exponentials). -/
 lemma isUnit_eval [NormedAlgebra ℝ 𝔸] [NormedAlgebra ℚ 𝔸] [CompleteSpace 𝔸]
-    (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) (τ : ℝ) :
+    (H : Fin Γ → 𝔸) (τ : ℝ) :
     IsUnit (P.eval H τ) := by
   unfold ProductFormulaData.eval
-  induction P.evalIndexList with
+  induction evalIndexList Υ Γ with
   | nil => simp
   | cons i l ih =>
       simp only [List.map_cons, List.prod_cons]
@@ -517,7 +520,7 @@ lemma inverse_isBigO_one_of_continuous_unit [NormedAlgebra ℝ 𝔸] [CompleteSp
 
 /-- `s ↦ factorProdOver P H s l` is smooth. -/
 lemma contDiff_factorProdOver [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸]
-    (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) (l : List (Fin P.Υ × Fin P.Γ)) :
+    (H : Fin Γ → 𝔸) (l : List (Fin Υ × Fin Γ)) :
     ContDiff ℝ ∞ (fun s : ℝ => factorProdOver P H s l) := by
   unfold factorProdOver
   exact contDiff_list_prod l (fun j s => P.evalFactor H j s)
@@ -526,52 +529,59 @@ lemma contDiff_factorProdOver [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸]
 
 /-- The additive kernel `𝒯` is smooth. -/
 lemma contDiff_additiveKernel [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸]
-    (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) :
+    (H : Fin Γ → 𝔸) :
     ContDiff ℝ ∞ (additiveKernel P H) := by
   unfold additiveKernel invStrictSuffixFactorProd strictSuffixFactorProd
-  have hsummand : ∀ i : Fin P.Υ × Fin P.Γ,
+  have hsummand : ∀ i : Fin Υ × Fin Γ,
       ContDiff ℝ ∞ (fun τ =>
-        factorProdOver P H (-τ) ((P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)).reverse) *
+        factorProdOver P H (-τ)
+          (((evalIndexList Υ Γ).drop ((evalIndexList Υ Γ).idxOf i + 1)).reverse) *
           P.generator H i * factorProdOver P H τ
-            (P.evalIndexList.drop (P.evalIndexList.idxOf i + 1))) := by
+            ((evalIndexList Υ Γ).drop ((evalIndexList Υ Γ).idxOf i + 1))) := by
     intro i
     exact (((contDiff_factorProdOver P H
-      ((P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)).reverse)).comp contDiff_neg).mul
+      (((evalIndexList Υ Γ).drop ((evalIndexList Υ Γ).idxOf i + 1)).reverse)).comp contDiff_neg).mul
         contDiff_const).mul
-      (contDiff_factorProdOver P H (P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)))
-  have hsum : ContDiff ℝ ∞ (fun τ => ∑ i : Fin P.Υ × Fin P.Γ,
-      factorProdOver P H (-τ) ((P.evalIndexList.drop (P.evalIndexList.idxOf i + 1)).reverse) *
+      (contDiff_factorProdOver P H ((evalIndexList Υ Γ).drop ((evalIndexList Υ Γ).idxOf i + 1)))
+  have hsum : ContDiff ℝ ∞ (fun τ => ∑ i : Fin Υ × Fin Γ,
+      factorProdOver P H (-τ)
+        (((evalIndexList Υ Γ).drop ((evalIndexList Υ Γ).idxOf i + 1)).reverse) *
         P.generator H i * factorProdOver P H τ
-          (P.evalIndexList.drop (P.evalIndexList.idxOf i + 1))) :=
+          ((evalIndexList Υ Γ).drop ((evalIndexList Υ Γ).idxOf i + 1))) :=
     ContDiff.sum (fun i _ => hsummand i)
-  have hother : ContDiff ℝ ∞ (fun τ => factorProdOver P H (-τ) (P.evalIndexList.reverse) *
-      (∑ γ, H γ) * factorProdOver P H τ (P.evalIndexList)) :=
-    (((contDiff_factorProdOver P H (P.evalIndexList.reverse)).comp contDiff_neg).mul
-      contDiff_const).mul (contDiff_factorProdOver P H P.evalIndexList)
+  have hother : ContDiff ℝ ∞ (fun τ => factorProdOver P H (-τ) ((evalIndexList Υ Γ).reverse) *
+      (∑ γ, H γ) * factorProdOver P H τ (evalIndexList Υ Γ)) :=
+    (((contDiff_factorProdOver P H ((evalIndexList Υ Γ).reverse)).comp contDiff_neg).mul
+      contDiff_const).mul (contDiff_factorProdOver P H (evalIndexList Υ Γ))
   exact hsum.sub hother
 
 /-- The exponentiated error `ℰ` is smooth. -/
 lemma contDiff_exponentiatedError [NormedAlgebra ℝ 𝔸] [CompleteSpace 𝔸]
-    (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) :
+    (H : Fin Γ → 𝔸) :
     ContDiff ℝ ∞ (exponentiatedError P H) := by
   unfold exponentiatedError exponentiatedGenerator prefixFactorProd invPrefixFactorProd
-  have hsummand : ∀ i : Fin P.Υ × Fin P.Γ,
+  have hsummand : ∀ i : Fin Υ × Fin Γ,
       ContDiff ℝ ∞ (fun τ =>
-        factorProdOver P H τ (P.evalIndexList.take (P.evalIndexList.idxOf i)) * P.generator H i *
-          factorProdOver P H (-τ) ((P.evalIndexList.take (P.evalIndexList.idxOf i)).reverse)) := by
+        factorProdOver P H τ
+          ((evalIndexList Υ Γ).take ((evalIndexList Υ Γ).idxOf i)) * P.generator H i *
+          factorProdOver P H (-τ)
+            (((evalIndexList Υ Γ).take ((evalIndexList Υ Γ).idxOf i)).reverse)) := by
     intro i
-    exact ((contDiff_factorProdOver P H (P.evalIndexList.take (P.evalIndexList.idxOf i))).mul
+    exact ((contDiff_factorProdOver P H
+      ((evalIndexList Υ Γ).take ((evalIndexList Υ Γ).idxOf i))).mul
       contDiff_const).mul ((contDiff_factorProdOver P H
-        ((P.evalIndexList.take (P.evalIndexList.idxOf i)).reverse)).comp contDiff_neg)
-  have hsum : ContDiff ℝ ∞ (fun τ => ∑ i : Fin P.Υ × Fin P.Γ,
-      factorProdOver P H τ (P.evalIndexList.take (P.evalIndexList.idxOf i)) * P.generator H i *
-        factorProdOver P H (-τ) ((P.evalIndexList.take (P.evalIndexList.idxOf i)).reverse)) :=
+        (((evalIndexList Υ Γ).take ((evalIndexList Υ Γ).idxOf i)).reverse)).comp contDiff_neg)
+  have hsum : ContDiff ℝ ∞ (fun τ => ∑ i : Fin Υ × Fin Γ,
+      factorProdOver P H τ
+        ((evalIndexList Υ Γ).take ((evalIndexList Υ Γ).idxOf i)) * P.generator H i *
+        factorProdOver P H (-τ)
+          (((evalIndexList Υ Γ).take ((evalIndexList Υ Γ).idxOf i)).reverse)) :=
     ContDiff.sum (fun i _ => hsummand i)
   exact hsum.sub contDiff_const
 
 /-- The additive error, factored: `𝒮(t) − e^{tH} = e^{tH} ∫₀ᵗ e^{−τH} 𝒮(τ) 𝒯(τ) dτ`. -/
 lemma eval_sub_exp_eq_exp_mul_integral [NormedAlgebra ℝ 𝔸] [NormedAlgebra ℚ 𝔸]
-    [CompleteSpace 𝔸] (P : ProductFormulaData) (H : Fin P.Γ → 𝔸) (t : ℝ) :
+    [CompleteSpace 𝔸] (H : Fin Γ → 𝔸) (t : ℝ) :
     P.eval H t - exp (t • ∑ γ, H γ) =
       exp (t • ∑ γ, H γ) * ∫ τ in 0..t,
         (exp ((-τ) • ∑ γ, H γ) * P.eval H τ) * additiveKernel P H τ := by
@@ -602,13 +612,11 @@ lemma eval_sub_exp_eq_exp_mul_integral [NormedAlgebra ℝ 𝔸] [NormedAlgebra �
 /-- `thm:error_order_cond`, additive part: the additive-kernel order condition `𝒯 = O(τ^p)` is
 equivalent to the `p`-th order condition `𝒮(t) = e^{tH} + O(t^{p+1})`. -/
 lemma errorOrderCond_additive_iff [NormedAlgebra ℝ 𝔸] [NormedAlgebra ℚ 𝔸]
-    [CompleteSpace 𝔸] (P : ProductFormulaData) (p : ℕ) (H : Fin P.Γ → 𝔸) :
+    [CompleteSpace 𝔸] (p : ℕ) (H : Fin Γ → 𝔸) :
     P.IsOrderOf p H ↔
       (fun τ => ‖additiveKernel P H τ‖) =O[𝓝 (0 : ℝ)] (fun τ => τ ^ p) := by
   let K : ℝ → 𝔸 := fun τ => (exp ((-τ) • ∑ γ, H γ) * P.eval H τ) * additiveKernel P H τ
-  have hK_contDiff : ContDiff ℝ ∞ K := by
-    dsimp [K]
-    exact (((contDiff_exp_smul_const (∑ γ, H γ)).comp contDiff_neg).mul
+  have hK_contDiff : ContDiff ℝ ∞ K := (((contDiff_exp_smul_const (∑ γ, H γ)).comp contDiff_neg).mul
       (contDiff_eval P H)).mul (contDiff_additiveKernel P H)
   constructor
   · intro hIs
@@ -680,7 +688,7 @@ lemma errorOrderCond_additive_iff [NormedAlgebra ℝ 𝔸] [NormedAlgebra ℚ �
 /-- `thm:error_order_cond`, exponentiated part: the exponentiated-error order condition
 `ℰ = O(τ^p)` is equivalent to the `p`-th order condition. -/
 lemma errorOrderCond_exponentiated_iff [NormedAlgebra ℝ 𝔸] [NormedAlgebra ℚ 𝔸]
-    [CompleteSpace 𝔸] (P : ProductFormulaData) (p : ℕ) (H : Fin P.Γ → 𝔸) :
+    [CompleteSpace 𝔸] (p : ℕ) (H : Fin Γ → 𝔸) :
     P.IsOrderOf p H ↔
       (fun τ => ‖exponentiatedError P H τ‖) =O[𝓝 (0 : ℝ)] (fun τ => τ ^ p) := by
   let F : ℝ → 𝔸 := fun τ => (∑ γ, H γ) + exponentiatedError P H τ
@@ -718,7 +726,7 @@ lemma errorOrderCond_exponentiated_iff [NormedAlgebra ℝ 𝔸] [NormedAlgebra �
 /-- `thm:error_order_cond`, multiplicative part: the multiplicative-error order condition
 `ℳ = O(t^{p+1})` is equivalent to the `p`-th order condition. -/
 lemma errorOrderCond_multiplicative_iff [NormedAlgebra ℝ 𝔸] [NormedAlgebra ℚ 𝔸]
-    [CompleteSpace 𝔸] (P : ProductFormulaData) (p : ℕ) (H : Fin P.Γ → 𝔸) :
+    [CompleteSpace 𝔸] (p : ℕ) (H : Fin Γ → 𝔸) :
     P.IsOrderOf p H ↔
       (fun t => ‖multiplicativeError P H t‖) =O[𝓝 (0 : ℝ)] (fun t => t ^ (p + 1)) := by
   have hmul : ∀ t, P.eval H t - exp (t • ∑ γ, H γ) =
@@ -754,7 +762,7 @@ lemma errorOrderCond_multiplicative_iff [NormedAlgebra ℝ 𝔸] [NormedAlgebra 
 (`ℰ = O(τ^p)`), and multiplicative (`ℳ = O(t^{p+1})`) order conditions are all equivalent to the
 `p`-th order condition `𝒮(t) = e^{tH} + O(t^{p+1})`. -/
 theorem errorOrderCond_iff [NormedAlgebra ℝ 𝔸] [NormedAlgebra ℚ 𝔸]
-    [CompleteSpace 𝔸] (P : ProductFormulaData) (p : ℕ) (H : Fin P.Γ → 𝔸) :
+    [CompleteSpace 𝔸] (p : ℕ) (H : Fin Γ → 𝔸) :
     List.TFAE [P.IsOrderOf p H,
       (fun τ => ‖additiveKernel P H τ‖) =O[𝓝 (0 : ℝ)] (fun τ => τ ^ p),
       (fun τ => ‖exponentiatedError P H τ‖) =O[𝓝 (0 : ℝ)] (fun τ => τ ^ p),
@@ -769,25 +777,25 @@ end ErrorOrderCond
 /-! ### Polynomial coefficients vanish -/
 
 /-- The `algebraMap` embedding `ℝ → 𝔸` is smooth. -/
-lemma contDiff_algebraMap {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸] :
+lemma contDiff_algebraMap [NormedAlgebra ℝ 𝔸] :
     ContDiff ℝ ∞ (fun τ : ℝ => (τ : 𝔸)) := by
   simpa only [Algebra.algebraMap_eq_smul_one] using
     (contDiff_smul_const (𝕜 := ℝ) (A := ℝ) (F := 𝔸) (v := (1 : 𝔸))
       : ContDiff ℝ ∞ (fun a : ℝ => a • (1 : 𝔸)))
 
 /-- The real power monomial `τ ↦ (τ ^ k : 𝔸)` is smooth. -/
-lemma contDiff_algebraMap_pow {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸] (k : ℕ) :
+lemma contDiff_algebraMap_pow [NormedAlgebra ℝ 𝔸] (k : ℕ) :
     ContDiff ℝ ∞ (fun τ : ℝ => (τ ^ k : 𝔸)) := contDiff_algebraMap.pow k
 
 /-- The 𝔸-monomial `τ ↦ c * (τ ^ k : 𝔸)` is smooth. -/
-lemma contDiff_monomial {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
+lemma contDiff_monomial [NormedAlgebra ℝ 𝔸]
     (c : 𝔸) (k : ℕ) :
     ContDiff ℝ ∞ (fun τ : ℝ => c * (τ ^ k : 𝔸)) :=
   contDiff_const.mul (contDiff_algebraMap_pow (𝔸 := 𝔸) k)
 
 /-- The `n`-th iterated derivative of `τ ↦ (τ : 𝔸) ^ m` is
 `(m.descFactorial n : ℝ) • (x : 𝔸) ^ (m - n)`. -/
-lemma iteratedDeriv_algebraMap_pow {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
+lemma iteratedDeriv_algebraMap_pow [NormedAlgebra ℝ 𝔸]
     (m n : ℕ) (x : ℝ) :
     iteratedDeriv n (fun τ : ℝ => (τ : 𝔸) ^ m) x =
       (m.descFactorial n : ℝ) • (x : 𝔸) ^ (m - n) := by
@@ -801,7 +809,7 @@ lemma iteratedDeriv_algebraMap_pow {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgeb
 
 /-- The `j`-th iterated derivative at `0` of the degree-`< p` polynomial
 `τ ↦ ∑_{k < p} T k · τ^k` equals `(j! : ℝ) • T j`: only the `k = j` monomial survives. -/
-lemma iteratedDeriv_polynomial_zero {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
+lemma iteratedDeriv_polynomial_zero [NormedAlgebra ℝ 𝔸]
     (p : ℕ) (T : ℕ → 𝔸) (j : ℕ) (hj : j < p) :
     iteratedDeriv j (fun τ : ℝ => ∑ k ∈ Finset.range p, T k * (τ ^ k : 𝔸)) 0 =
       (Nat.factorial j : ℝ) • T j := by
@@ -839,14 +847,12 @@ lemma iteratedDeriv_polynomial_zero {𝔸 : Type*} [NormedRing 𝔸] [NormedAlge
 /-- A polynomial `Σ_{j < p} T j · τ^j` (coefficients `T j : 𝔸`, degree `< p`) is `O(τ^p)`
 at `0` iff all its coefficients vanish (the order-condition cancellation step of the paper's
 main theorem, theory.tex:258-264). -/
-theorem polynomial_isBigO_iff_coeffs_zero {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra ℝ 𝔸]
+theorem polynomial_isBigO_iff_coeffs_zero [NormedAlgebra ℝ 𝔸]
     (p : ℕ) (T : ℕ → 𝔸) :
     (fun τ : ℝ => ‖∑ j ∈ Finset.range p, T j * (τ ^ j : 𝔸)‖) =O[𝓝 (0 : ℝ)] (fun τ : ℝ => τ ^ p) ↔
       ∀ j : ℕ, j < p → T j = 0 := by
   let poly : ℝ → 𝔸 := fun τ => ∑ j ∈ Finset.range p, T j * (τ ^ j : 𝔸)
-  have hpoly_smooth : ContDiff ℝ ∞ poly := by
-    dsimp [poly]
-    exact ContDiff.sum (fun j _ => contDiff_monomial (T j) j)
+  have hpoly_smooth : ContDiff ℝ ∞ poly := ContDiff.sum (fun j _ => contDiff_monomial (T j) j)
   constructor
   · intro hbig
     have hvan : ∀ j < p, iteratedDeriv j poly 0 = 0 :=

@@ -176,7 +176,6 @@ lemma norm_conj_smul_integral_le {𝔸 : Type*} [NormedRing 𝔸] [NormedAlgebra
   have hC : 0 ≤ C := mul_nonneg (norm_nonneg X) (Real.exp_nonneg _)
   have hconj : ∀ u ∈ Set.uIoc (0 : ℝ) τ, ‖expSMulConj A X u‖ ≤ C := by
     intro u hu
-    dsimp [C]
     refine (norm_expSMulConj_le A X u).trans ?_
     have harg : 2 * |u| * ‖A‖ ≤ 2 * |τ| * ‖A‖ := by
       have habs_u : |u| ≤ |τ| := by
@@ -257,9 +256,8 @@ lemma norm_absorbed_conj_smul_integral_le {𝔸 : Type*} [NormedRing 𝔸] [Norm
         (exp (τ • A) * expSMulConj A X u)‖ =
         (|-τ - u| ^ (q - 1) * |-τ| ^ m / D) * ‖exp (τ • A) * expSMulConj A X u‖ := by
       rw [norm_smul, Real.norm_eq_abs, habs]
-    have hconj : ‖exp (τ • A) * expSMulConj A X u‖ ≤ C := by
-      dsimp [C]
-      exact norm_exp_mul_expSMulConj_le A X τ u hτ (Set.uIoc_subset_uIcc hu)
+    have hconj : ‖exp (τ • A) * expSMulConj A X u‖ ≤ C :=
+      norm_exp_mul_expSMulConj_le A X τ u hτ (Set.uIoc_subset_uIcc hu)
     calc
       ‖(((-τ - u) ^ (q - 1) * (-τ) ^ m / D) : ℝ) • (exp (τ • A) * expSMulConj A X u)‖
           = (|-τ - u| ^ (q - 1) * |-τ| ^ m / D) * ‖exp (τ • A) * expSMulConj A X u‖ := hsmul
@@ -767,7 +765,7 @@ lemma norm_commutatorRemainderTerm_le {s} {𝔸 : Type*} [NormedRing 𝔸] [Norm
   let D : ℝ := (Nat.factorial (q (Fin.last j) - 1) : ℝ) *
     ∏ i : Fin j, (Nat.factorial (q i.castSucc) : ℝ)
   have hsum : (∑ i : Fin (j + 1), q i) = p := mem_finAntidiagonal.mp hq
-  have hD : 0 < D := by dsimp [D]; positivity
+  have hD : 0 < D := by positivity
   have houterL : ‖((List.ofFn (fun i : Fin s => exp (τ • A i))).drop (j + 1)).reverse.prod‖ ≤
       Real.exp (((List.ofFn (fun i : Fin s => |τ| * ‖A i‖)).drop (j + 1)).sum) :=
     norm_ofFn_drop_reverse_prod_exp_le A (j + 1) τ

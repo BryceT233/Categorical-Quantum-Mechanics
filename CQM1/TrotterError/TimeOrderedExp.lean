@@ -667,7 +667,6 @@ lemma timeOrderedExp_duhamel (H R : ℝ → 𝔸) (hH : Continuous H) (hR : Cont
   have hU_eq_F : U = F := by
     funext s
     have hds : d s = 0 := congr_fun hd_eq_zero s
-    dsimp [d] at hds
     exact sub_eq_zero.mp hds
   simpa [F] using congr_fun hU_eq_F t
 
